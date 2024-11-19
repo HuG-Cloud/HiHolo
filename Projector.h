@@ -72,7 +72,6 @@ class PMagnitudeCons: public Projector
         // choose function according to different projection methods
         Method calculate;
         void projectStep(const float *measuredGrams, const PropagatorPtr &prop);
-        // void projectStep(const PropagatorPtr &prop);
         void projAveraged();
         void projSequential();
         void projCyclic();
@@ -83,7 +82,5 @@ class PMagnitudeCons: public Projector
         virtual Projection project(const WaveField& waveField) override;
         ~PMagnitudeCons();
 };
-
-__global__ void limitAmplitude(cuFloatComplex *complexWave, const float *amplitude, int numel);
 
 #endif
