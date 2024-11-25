@@ -58,6 +58,14 @@ __global__ void scaleComplexData(cuFloatComplex* data, int numel, float scale)
     }
 }
 
+__global__ void scaleFloatData(float *data, int numel, float scale)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        data[idx] *= scale;
+    }
+}
+
 __global__ void computeAmplitude(cuFloatComplex *complexWave, float *amplitude, int numel)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -287,6 +295,109 @@ __global__ void genChirpKernel(cuFloatComplex *kernel, cuFloatComplex *rowCompon
     }
 }
 
+__global__ void genCTFComponent(float *component, const float *range, float fresnelNumber, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        component[idx] = powf(range[idx], 2) / (4.0f * M_PIf32 * fresnelNumber);
+    }
+}
+
+__global__ void computeCTF(float *data, float ratio, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        float tmp = sinf(data[idx]);
+        if (ratio > 0) {
+            tmp += cosf(data[idx]) * ratio;
+        }
+        data[idx] = tmp;
+    }
+}
+
+__global__ void CTFMultiplyHologram(cuFloatComplex *hologram, const float *data, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        hologram[idx] = cuCmulf(hologram[idx], make_cuFloatComplex(data[idx], 0.0f));
+    }
+}
+
+__global__ void addSquareData(float *data, const float *newData, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        data[idx] += powf(newData[idx], 2);
+    }
+}
+
+__global__ void subtractConstant(cuFloatComplex *data, const float constant, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        data[idx] = cuCsubf(data[idx], make_cuFloatComplex(constant, 0.0f));
+    }
+}
+
+__global__ void genRegComponent(float *component, float fresnelNumber, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        component[idx] = powf(component[idx], 2) / (2.0f * powf(M_PIf32, 2) * fresnelNumber);
+    }
+}
+
+__device__ float erfc_approx(float x) {
+    // 使用 Abramowitz 和 Stegun 提供的近似公式
+    float t = 1.0f / (1.0f + 0.5f * fabsf(x));
+    float tau = t * expf(-x * x - 1.26551223f + t * (1.00002368f + t * (0.37409196f + 
+                t * (0.09678418f + t * (-0.18628806f + t * (0.27886807f + 
+                t * (-1.13520398f + t * (1.48851587f + t * (-0.82215223f + 
+                t * 0.17087277f)))))))));
+    return x >= 0.0f ? tau : 2.0f - tau;
+}
+
+__global__ void computeErfcWeights(float* data, float param, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        float tmp = (sqrtf(data[idx]) - 1.0f) / param;
+        data[idx] = 0.5f * erfc_approx(tmp);
+    }
+}
+
+__global__ void genRegWeights(float* data, float lim1, float lim2, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        data[idx] = lim1 * data[idx] + lim2 * (1.0f - data[idx]);
+    }
+}
+
+__global__ void addFloatData(float* data, const float* newData, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        data[idx] += newData[idx];
+    }
+}
+
+__global__ void complexDivideFloat(cuFloatComplex* data, const float* newData, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        data[idx] = cuCdivf(data[idx], make_cuFloatComplex(newData[idx], 0.0f));
+    }
+}
+
+__global__ void extractRealData(const cuFloatComplex* data, float* realData, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        realData[idx] = data[idx].x;
+    }
+}
+
 __global__ void propProcess(cuFloatComplex *propagatedWave, cuFloatComplex *complexWave, cuFloatComplex *kernel, int numel, int batchSize)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -346,6 +457,23 @@ void CUDAUtils::cropMatrix(cuFloatComplex* matrix, cuFloatComplex* matrix_new, i
     int dstStep = newCols * sizeof(Npp32fc);
 
     nppiCopy_32fc_C1R(reinterpret_cast<const Npp32fc*>(matrix) + srcOffset.y * cols + srcOffset.x, srcStep, reinterpret_cast<Npp32fc*>(matrix_new), dstStep, srcSize);
+}
+
+void CUDAUtils::cropMatrix(float* matrix, float* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols)
+{
+    int newRows = rows - cropPreRows - cropPostRows;
+    int newCols = cols - cropPreCols - cropPostCols;
+
+    if (newRows <= 0 || newCols <= 0) {
+        throw std::runtime_error("The size of cropped matrix is non-positive!");
+    }
+    
+    NppiSize srcSize = {newCols, newRows};
+    NppiRect srcOffset = {cropPreCols, cropPreRows};
+    int srcStep = cols * sizeof(Npp32f);
+    int dstStep = newCols * sizeof(Npp32f);
+
+    nppiCopy_32f_C1R(reinterpret_cast<const Npp32f*>(matrix) + srcOffset.y * cols + srcOffset.x, srcStep, reinterpret_cast<Npp32f*>(matrix_new), dstStep, srcSize);
 }
 
 void CUDAUtils::padByConstant(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, float padValue)
@@ -434,8 +562,37 @@ void CUDAUtils::padMatrix(float* matrix, float* matrix_new, int rows, int cols, 
     }
 }
 
+
+void CUDAUtils::ctfRegWeights(float *regWeights, const IntArray &imSize, const FArray &fresnelNumber, float lowFreqLim, float highFreqLim)
+{
+    float *rowRange, *colRange;
+    cudaMalloc((void**)&rowRange, imSize[0] * sizeof(float));
+    cudaMalloc((void**)&colRange, imSize[1] * sizeof(float));
+    FArray spacing(2, 1.0f);
+    CUDAUtils::genFFTFreq(rowRange, colRange, imSize, spacing);
+    
+    int blockSize = 512;
+    int gridRowSize = (imSize[0] + blockSize - 1) / blockSize;
+    int gridColSize = (imSize[1] + blockSize - 1) / blockSize;
+    genRegComponent<<<gridRowSize, blockSize>>>(rowRange, fresnelNumber[0], imSize[0]);
+    genRegComponent<<<gridColSize, blockSize>>>(colRange, fresnelNumber[1], imSize[1]);
+
+    dim3 blockSize2D(32, 32);
+    dim3 gridSize2D((imSize[1] + blockSize2D.x - 1) / blockSize2D.x, (imSize[0] + blockSize2D.y - 1) / blockSize2D.y);
+    multiplyObliFactor_2<<<gridSize2D, blockSize2D>>>(regWeights, rowRange, colRange, imSize[0], imSize[1]);
+
+    float sigma = std::sqrt(2.0f) * (std::sqrt(2.0f) - 1.0f) / 2.0f;
+    blockSize = 1024;
+    int numBlocks = (imSize[0] * imSize[1] + blockSize - 1) / blockSize;
+    computeErfcWeights<<<numBlocks, blockSize>>>(regWeights, sigma, imSize[0] * imSize[1]);
+    genRegWeights<<<numBlocks, blockSize>>>(regWeights, lowFreqLim, highFreqLim, imSize[0] * imSize[1]);
+
+    cudaFree(rowRange);
+    cudaFree(colRange);
+}
+
 void CUDAPropKernel::genByFourier(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber)
-{   
+{
     float *rowRange;
     float *colRange;
     cudaMalloc(&rowRange, imSize[0] * sizeof(float));
@@ -587,4 +744,5 @@ void CUDAPropKernel::generateKernel(cuFloatComplex* kernel, const IntArray &imSi
             throw std::invalid_argument("Invalid propagation kernel type!");
             break;
     }
+
 }

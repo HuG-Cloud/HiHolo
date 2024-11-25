@@ -93,7 +93,7 @@ IterationResult ProjectionSolver::execute(int iterations)
         currentIteration++;
     }
     
-    std::cout << "The last Iteration: " << currentIteration << std::endl;
+    // std::cout << "The last Iteration: " << currentIteration << std::endl;
     psi = projMagnitude->project(psi).projection;
     return {psi, residual};
 }

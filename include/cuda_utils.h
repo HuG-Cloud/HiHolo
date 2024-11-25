@@ -49,15 +49,20 @@ namespace CUDAUtils
     enum PaddingType {Constant, Replicate, Fadeout};
 
     void cropMatrix(cuFloatComplex* matrix, cuFloatComplex* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols);
+    void cropMatrix(float* matrix, float* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols);
     void padByConstant(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, float padValue);
     void padByReplicate(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols);
     void padByFadeout(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols);
     // Pad matrix to given size in different ways
     void padMatrix(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, PaddingType type, float padValue = 0.0f);
+
+    void ctfRegWeights(float *regWeights, const IntArray &imSize, const FArray &fresnelNumber, float lowFreqLim, float highFreqLim);
 }
 
 // Normalize the inverse FFT result
 __global__ void scaleComplexData(cuFloatComplex* data, int numel, float scale);
+__global__ void scaleFloatData(float *data, int numel, float scale);
+
 // Generate the FFT frequency and shift it
 __global__ void genShiftedFFTFreq(float* output, int size, float spacing);
 
@@ -104,5 +109,20 @@ __global__ void initializeData(T *data, T value, int numel)
 }
 
 __global__ void initByPhase(cuFloatComplex *data, const float *phase, int numel);
+
+__global__ void genCTFComponent(float *component, const float *range, float fresnelNumber, int numel);
+__global__ void computeCTF(float *data, float ratio, int numel);
+__global__ void CTFMultiplyHologram(cuFloatComplex *hologram, const float *data, int numel);
+__global__ void addSquareData(float *data, const float *newData, int numel);
+__global__ void subtractConstant(cuFloatComplex *data, const float constant, int numel);
+
+__global__ void genRegComponent(float *component, float fresnelNumber, int numel);
+__device__ float erfc_approx(float x);
+__global__ void computeErfcWeights(float* data, float param, int numel);
+__global__ void genRegWeights(float* data, float lim1, float lim2, int numel);
+
+__global__ void addFloatData(float* data, const float* newData, int numel);
+__global__ void complexDivideFloat(cuFloatComplex* data, const float* newData, int numel);
+__global__ void extractRealData(const cuFloatComplex* data, float* realData, int numel);
 
 #endif

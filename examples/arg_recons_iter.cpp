@@ -124,18 +124,18 @@ int main(int argc, char* argv[])
     auto kernelMethod = static_cast<CUDAPropKernel::Type>(program.get<int>("-m"));
     bool calcError = program.get<bool>("-e") ? true : false;
 
-    // auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
     
     F2DArray result = PhaseRetrieval::reconstruct_iter(holograms, numHolograms, imSize, fresnelNumbers, iterations, initialPhase, algorithm,
                                      parameters, padSize, ampLimits[0], ampLimits[1], projectionType, kernelMethod, padType, calcError);
         
-    // auto end = std::chrono::high_resolution_clock::now();
-    // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    // std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
 
     // Display the 2 results and save to HDF5 file
-    //IOUtils::savePhasegrams("/home/hug/Downloads/HoloTomo_Data/reconsfile.h5", "phasedata", result[0], imSize[0], imSize[1]);
-    ImageUtils::displayNDArray(result, imSize[0], imSize[1], std::vector<std::string>{"phase", "amplitude"});
+    // OUtils::savePhasegrams("/home/hug/Downloads/HoloTomo_Data/reconsfile.h5", "phasedata", result[0], imSize[0], imSize[1]);
+    // ImageUtils::displayNDArray(result, imSize[0], imSize[1], std::vector<std::string>{"phase", "amplitude"});
 
     return 0;
 }

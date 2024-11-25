@@ -13,7 +13,8 @@ namespace PhaseRetrieval
                           ProjectionSolver::Algorithm algorithm = ProjectionSolver::AP, const FArray &algoParameters = FArray(), const IntArray &padSize = IntArray(),
                           float minAmplitude = 0.0f, float maxAmplitude = FloatInf, PMagnitudeCons::Type projectionType = PMagnitudeCons::Averaged, 
                           CUDAPropKernel::Type kernelType = CUDAPropKernel::Fourier, CUDAUtils::PaddingType padType = CUDAUtils::PaddingType::Replicate, bool calcError = false);
-    F2DArray reconstruct_ctf(const FArray &holograms, const IntArray &imSize, const F2DArray &fresnelNumbers);
+    FArray reconstruct_ctf(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelnumbers, float lowFreqLim = 1e-3f, float highFreqLim = 1e-1f,
+                          float betaDeltaRatio = 0.0f, const IntArray &padSize = IntArray(), CUDAUtils::PaddingType padType = CUDAUtils::PaddingType::Replicate);
 }
 
 #endif

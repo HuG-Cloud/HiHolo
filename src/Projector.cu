@@ -68,21 +68,21 @@ PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const 
                        imSize(imsize), fresnelNumbers(fresnelnumbers), type(projectionType), calculateError(calcError)
 {   
     // Initialize fresnel propagator(s)
-    std::cout << "Choosing kernel type: ";
-    switch (kernelType) {
-        case CUDAPropKernel::Fourier:
-            std::cout << "Fourier";
-            break;
-        case CUDAPropKernel::Chirp:
-            std::cout << "Chirp";
-            break;
-        case CUDAPropKernel::ChirpLimited:
-            std::cout << "ChirpLimited";
-            break;
-        default: 
-            throw std::invalid_argument("Invalid kernel type!");
-    }
-    std::cout << std::endl;
+    // std::cout << "Choosing kernel type: ";
+    // switch (kernelType) {
+    //     case CUDAPropKernel::Fourier:
+    //         std::cout << "Fourier";
+    //         break;
+    //     case CUDAPropKernel::Chirp:
+    //         std::cout << "Chirp";
+    //         break;
+    //     case CUDAPropKernel::ChirpLimited:
+    //         std::cout << "ChirpLimited";
+    //         break;
+    //     default: 
+    //         throw std::invalid_argument("Invalid kernel type!");
+    // }
+    // std::cout << std::endl;
 
     if (type == Averaged) {
         batchSize = numImages;
@@ -102,13 +102,13 @@ PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const 
     auto iterator = methodMap.find(type);
     calculate = iterator->second;
     
-    std::cout << "Choosing projection method: ";
-    switch (type) {
-        case Averaged: std::cout << "Averaged"; break;
-        case Sequential: std::cout << "Sequential"; break;
-        case Cyclic: std::cout << "Cyclic"; break;
-    }
-    std::cout << std::endl;
+    // std::cout << "Choosing projection method: ";
+    // switch (type) {
+    //     case Averaged: std::cout << "Averaged"; break;
+    //     case Sequential: std::cout << "Sequential"; break;
+    //     case Cyclic: std::cout << "Cyclic"; break;
+    // }
+    // std::cout << std::endl;
 
     cudaMalloc(&complexWave, sizeof(cuFloatComplex) * imSize[0] * imSize[1]);
     cudaMalloc(&cmp3DWave, sizeof(cuFloatComplex) * imSize[0] * imSize[1] * batchSize);
