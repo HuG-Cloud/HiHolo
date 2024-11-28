@@ -84,17 +84,16 @@ int main(int argc, char* argv[])
        highFreqLim = program.get<float>("-H");
     }
     
-    // auto start = std::chrono::high_resolution_clock::now();
-    
+    auto start = std::chrono::high_resolution_clock::now();    
     FArray phase = PhaseRetrieval::reconstruct_ctf(holograms, numHolograms, imSize, fresnelNumbers, lowFreqLim, highFreqLim, ratio, padSize, padType);
-    F2DArray result {phase};
-    // auto end = std::chrono::high_resolution_clock::now();
-    // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    // std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
 
+    // F2DArray result {phase};
     // Display the phase result and save to HDF5 file
     // OUtils::savePhasegrams("/home/hug/Downloads/HoloTomo_Data/reconsfile.h5", "phasedata", result[0], imSize[0], imSize[1]);
-    ImageUtils::displayNDArray(result, imSize[0], imSize[1], std::vector<std::string>{"phase"});
+    // ImageUtils::displayNDArray(result, imSize[0], imSize[1], std::vector<std::string>{"phase"});
 
     return 0;
 }

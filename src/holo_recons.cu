@@ -39,7 +39,7 @@ namespace PhaseRetrieval
     // }
 
     FArray reconstruct_ctf(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelnumbers, float lowFreqLim, float highFreqLim,
-                             float betaDeltaRatio, const IntArray &padSize, CUDAUtils::PaddingType padType)
+                           float betaDeltaRatio, const IntArray &padSize, CUDAUtils::PaddingType padType)
     {
         /* Check correctness and compatibility of measurements and fresnel numbers */
         if (holograms.empty() || imSize.empty())
@@ -58,7 +58,8 @@ namespace PhaseRetrieval
             }
         }
         
-        if (lowFreqLim < (2.0f * numImages * std::pow(betaDeltaRatio, 2))) {
+        // Set low frequency limit to zero if the ratio is too large
+        if (lowFreqLim < (2.0f * numImages * std::pow(betaDeltaRatio, 2.0f))) {
             lowFreqLim = 0.0f;
         }
         
@@ -74,10 +75,20 @@ namespace PhaseRetrieval
             newSize[1] += 2 * padSize[1];
             float *paddedHolograms_gpu;
             cudaMalloc((void**)&paddedHolograms_gpu, newSize[0] * newSize[1] * numImages * sizeof(float));
+
+            cudaStream_t *streams = new cudaStream_t[numImages];
             for (int i = 0; i < numImages; i++) {
+                cudaStreamCreate(&streams[i]);
                 CUDAUtils::padMatrix(holograms_gpu + i * imSize[0] * imSize[1], paddedHolograms_gpu + i * newSize[0] * newSize[1],
-                                     imSize[0], imSize[1], padSize[0], padSize[1], padType);
+                                     imSize[0], imSize[1], padSize[0], padSize[1], padType, 0.0f, streams[i]);
             }
+
+            for (int i = 0; i < numImages; i++) {
+                cudaStreamSynchronize(streams[i]);
+                cudaStreamDestroy(streams[i]);
+            }
+            delete[] streams;
+            
             float *temp = holograms_gpu;
             holograms_gpu = paddedHolograms_gpu;
             cudaFree(temp);
@@ -89,6 +100,8 @@ namespace PhaseRetrieval
         cudaMalloc((void**)&colRange, newSize[1] * sizeof(float));
         FArray spacing(2, 1.0f);
         CUDAUtils::genFFTFreq(rowRange, colRange, newSize, spacing);
+
+        std::cout << "Choosing Algorithm: CTF" << std::endl;
 
         // Allocate GPU memory for CTF related data
         cuFloatComplex *CTFHolograms;
@@ -112,7 +125,9 @@ namespace PhaseRetrieval
         int gridRowSize1D = (newSize[0] + blockSize1D - 1) / blockSize1D;
         int gridColSize1D = (newSize[1] + blockSize1D - 1) / blockSize1D;
         dim3 blockSize2D(32, 32);
-        dim3 gridSize2D((newSize[1] + blockSize2D.x - 1) / blockSize2D.x, (newSize[0] + blockSize2D.y - 1) / blockSize2D.y);
+        dim3 gridSize2D((newSize[1] + blockSize2D.x - 1) / blockSize2D.x, 
+                        (newSize[0] + blockSize2D.y - 1) / blockSize2D.y);
+        size_t sharedMemSize = (blockSize2D.x + blockSize2D.y) * sizeof(float);
         int blockSize = 1024;
         int gridSize = (newSize[0] * newSize[1] + blockSize - 1) / blockSize;
 
@@ -122,13 +137,14 @@ namespace PhaseRetrieval
         
         // CTF reconstruction main loop
         for (size_t i = 0; i < numImages; i++) {
+            // Compute CTF transfer function
             genCTFComponent<<<gridRowSize1D, blockSize1D>>>(rowComponent, rowRange, fresnelNumbers[i][0], newSize[0]);
             genCTFComponent<<<gridColSize1D, blockSize1D>>>(colComponent, colRange, fresnelNumbers[i][1], newSize[1]);
-            multiplyObliFactor_2<<<gridSize2D, blockSize2D>>>(tempCTF, rowComponent, colComponent, newSize[0], newSize[1]);
-            
+            multiplyObliFactor_2<<<gridSize2D, blockSize2D, sharedMemSize>>>(tempCTF, rowComponent, colComponent, newSize[0], newSize[1]);
             computeCTF<<<gridSize, blockSize>>>(tempCTF, betaDeltaRatio, newSize[0] * newSize[1]);
-            cufftExecR2C(plan, holograms_gpu + i * newSize[0] * newSize[1], tempHologram);
             
+            // Multiply FFT of holograms by CTF transfer function
+            cufftExecR2C(plan, holograms_gpu + i * newSize[0] * newSize[1], tempHologram);
             CTFMultiplyHologram<<<gridSize, blockSize>>>(tempHologram, tempCTF, newSize[0] * newSize[1]);
             addWaveField<<<gridSize, blockSize>>>(CTFHolograms, tempHologram, newSize[0] * newSize[1]);
             addSquareData<<<gridSize, blockSize>>>(CTFSq, tempCTF, newSize[0] * newSize[1]);
@@ -136,7 +152,7 @@ namespace PhaseRetrieval
         scaleFloatData<<<gridSize, blockSize>>>(CTFSq, newSize[0] * newSize[1], 2.0f);
 
         // Correction for zero-frequency of Fourier transform
-        subtractConstant<<<gridSize, blockSize>>>(CTFHolograms, newSize[0] * newSize[1] * numImages * betaDeltaRatio, 1);
+        subtractConstant<<<1, 1>>>(CTFHolograms, newSize[0] * newSize[1] * numImages * betaDeltaRatio, 1);
         
         // Calculate the fresnel mean by dimension
         FArray fresnelMean(2);
@@ -157,7 +173,9 @@ namespace PhaseRetrieval
         // Final calculation and inverse Fourier transform
         complexDivideFloat<<<gridSize, blockSize>>>(CTFHolograms, regWeights, newSize[0] * newSize[1]);
         cufftPlan2d(&plan, newSize[0], newSize[1], CUFFT_C2C);
+
         cufftExecC2C(plan, CTFHolograms, CTFHolograms, CUFFT_INVERSE);
+        scaleComplexData<<<gridSize, blockSize>>>(CTFHolograms, newSize[0] * newSize[1], 1.0f / (newSize[0] * newSize[1]));
         extractRealData<<<gridSize, blockSize>>>(CTFHolograms, tempCTF, newSize[0] * newSize[1]);
         
         // Crop the result if padding is applied
@@ -175,7 +193,7 @@ namespace PhaseRetrieval
         cudaMemcpy(result.data(), tempCTF, imSize[0] * imSize[1] * sizeof(float), cudaMemcpyDeviceToHost);
 
         // Free memory and destroy plan
-        cufftDestroy(plan); 
+        cufftDestroy(plan);
         cudaFree(regWeights); cudaFree(tempCTF); cudaFree(tempHologram);
         cudaFree(rowComponent); cudaFree(colComponent); cudaFree(rowRange); cudaFree(colRange);
         cudaFree(holograms_gpu); cudaFree(CTFHolograms); cudaFree(CTFSq);
@@ -207,10 +225,20 @@ namespace PhaseRetrieval
             newSize[1] += 2 * padSize[1];
             float *paddedHolograms_gpu;
             cudaMalloc((void**)&paddedHolograms_gpu, newSize[0] * newSize[1] * numImages * sizeof(float));
+
+            cudaStream_t *streams = new cudaStream_t[numImages];
             for (int i = 0; i < numImages; i++) {
+                cudaStreamCreate(&streams[i]);
                 CUDAUtils::padMatrix(holograms_gpu + i * imSize[0] * imSize[1], paddedHolograms_gpu + i * newSize[0] * newSize[1],
-                                     imSize[0], imSize[1], padSize[0], padSize[1], padType);
+                                     imSize[0], imSize[1], padSize[0], padSize[1], padType, 0.0f, streams[i]);
             }
+
+            for (int i = 0; i < numImages; i++) {
+                cudaStreamSynchronize(streams[i]);
+                cudaStreamDestroy(streams[i]);
+            }
+            delete[] streams;
+            
             float *temp = holograms_gpu;
             holograms_gpu = paddedHolograms_gpu;
             cudaFree(temp);

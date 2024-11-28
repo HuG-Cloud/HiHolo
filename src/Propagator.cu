@@ -6,9 +6,19 @@ Propagator::Propagator(const IntArray &imsize, const F2DArray &fresnelnumbers, C
     numImages = fresnelNumbers.size();
     cudaMalloc(&propKernels, numImages * imSize[0] * imSize[1] * sizeof(cuFloatComplex));
 
-    for (size_t i = 0; i < numImages; i++) {
+    std::vector<cudaStream_t> streams(numImages);
+    for (int i = 0; i < numImages; i++) {
+        cudaStreamCreate(&streams[i]);
+    }
+    
+    for (int i = 0; i < numImages; i++) {
         FArray fresnelNumber(fresnelNumbers[i].begin(), fresnelNumbers[i].end());
-        CUDAPropKernel::generateKernel(propKernels + i * imSize[0] * imSize[1], imSize, fresnelNumber, type);
+        CUDAPropKernel::generateKernel(propKernels + i * imSize[0] * imSize[1], imSize, fresnelNumber, type, streams[i]);
+    }
+
+    for (int i = 0; i < numImages; i++) {
+        cudaStreamSynchronize(streams[i]);
+        cudaStreamDestroy(streams[i]);
     }
 }
 

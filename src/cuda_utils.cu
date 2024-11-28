@@ -232,11 +232,25 @@ __global__ void genChirpComponent(cuFloatComplex *component, float *fftFreq, int
 
 __global__ void genMaskMatrix(float *mask, float *rowGrid, float *colGrid, int rows, int cols)
 {
+    extern __shared__ float shared_data[];
+    float *shared_row = shared_data;
+    float *shared_col = &shared_data[blockDim.y];
+
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (threadIdx.x == 0 && row < rows) {
+        shared_row[threadIdx.y] = rowGrid[row];
+    }
+    if (threadIdx.y == 0 && col < cols) {
+        shared_col[threadIdx.x] = colGrid[col];
+    }
+
+    __syncthreads();
+
     if (row < rows && col < cols) {
         int idx = row * cols + col;
-        mask[idx] = (1.0f + cosf(rowGrid[row])) * (0.25f * (1.0f + cosf(colGrid[col])));
+        mask[idx] = (1.0f + cosf(shared_row[threadIdx.y])) * (0.25f * (1.0f + cosf(shared_col[threadIdx.x])));
     }
 }
 
@@ -252,8 +266,23 @@ __global__ void multiplyObliFactor_2(float *matrix, float *rowRange, float *colR
 {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    extern __shared__ float shared_data[];
+    float* shared_row = shared_data;
+    float* shared_col = &shared_data[blockDim.y];
+
+    if (threadIdx.x == 0 && row < rows) {
+        shared_row[threadIdx.y] = rowRange[row];
+    }
+    if (threadIdx.y == 0 && col < cols) {
+        shared_col[threadIdx.x] = colRange[col];
+    }
+
+    __syncthreads();
+
     if (row < rows && col < cols) {
-        matrix[row * cols + col] = rowRange[row] + colRange[col];
+        int idx = row * cols + col;
+        matrix[idx] = shared_row[threadIdx.y] + shared_col[threadIdx.x];
     }
 }
 
@@ -279,9 +308,23 @@ __global__ void genFourierKernel(cuFloatComplex *kernel, cuFloatComplex *rowComp
 {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    extern __shared__ cuFloatComplex shared_mem[];
+    cuFloatComplex* shared_row = shared_mem;
+    cuFloatComplex* shared_col = &shared_mem[blockDim.y];
+
+    if (threadIdx.x == 0 && row < rows) {
+        shared_row[threadIdx.y] = rowComponent[row];
+    }
+    if (threadIdx.y == 0 && col < cols) {
+        shared_col[threadIdx.x] = colComponent[col];
+    }
+
+    __syncthreads();
+
     if (row < rows && col < cols) {
         int idx = row * cols + col;
-        kernel[idx] = cuCmulf(rowComponent[row], colComponent[col]);
+        kernel[idx] = cuCmulf(shared_row[threadIdx.y], shared_col[threadIdx.x]);
     }
 }
 
@@ -289,9 +332,23 @@ __global__ void genChirpKernel(cuFloatComplex *kernel, cuFloatComplex *rowCompon
 {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    extern __shared__ cuFloatComplex shared_mem[];
+    cuFloatComplex* shared_row = shared_mem;
+    cuFloatComplex* shared_col = &shared_mem[blockDim.y];
+
+    if (threadIdx.x == 0 && row < rows) {
+        shared_row[threadIdx.y] = rowComponent[row];
+    }
+    if (threadIdx.y == 0 && col < cols) {
+        shared_col[threadIdx.x] = colComponent[col];
+    }
+
+    __syncthreads();
+
     if (row < rows && col < cols) {
         int idx = row * cols + col;
-        kernel[idx] = cuCmulf(cuCmulf(rowComponent[row], colComponent[col]), initCoeff);
+        kernel[idx] = cuCmulf(cuCmulf(shared_row[threadIdx.y], shared_col[threadIdx.x]), initCoeff);
     }
 }
 
@@ -386,7 +443,8 @@ __global__ void complexDivideFloat(cuFloatComplex* data, const float* newData, i
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < numel) {
-        data[idx] = cuCdivf(data[idx], make_cuFloatComplex(newData[idx], 0.0f));
+        float denominator = newData[idx] + 1e-10f;
+        data[idx] = cuCdivf(data[idx], make_cuFloatComplex(denominator, 0.0f));
     }
 }
 
@@ -422,7 +480,7 @@ __global__ void backPropProcess(cuFloatComplex *complexWave, cuFloatComplex *pro
     }
 }
 
-void CUDAUtils::genFFTFreq(float* rowRange, float* colRange, const IntArray &imSize, FArray &spacing)
+void CUDAUtils::genFFTFreq(float* rowRange, float* colRange, const IntArray &imSize, FArray &spacing, cudaStream_t stream)
 {
     if (spacing.size() != imSize.size() && spacing.size() != 1) {
         throw std::invalid_argument("Invalid sample spacings!");
@@ -436,10 +494,10 @@ void CUDAUtils::genFFTFreq(float* rowRange, float* colRange, const IntArray &imS
 
     int blockSize = 512;
     int numBlocks = (rows + blockSize - 1) / blockSize;
-    genShiftedFFTFreq<<<numBlocks, blockSize>>>(rowRange, rows, spacing[0]);
+    genShiftedFFTFreq<<<numBlocks, blockSize, 0, stream>>>(rowRange, rows, spacing[0]);
 
     numBlocks = (cols + blockSize - 1) / blockSize;
-    genShiftedFFTFreq<<<numBlocks, blockSize>>>(colRange, cols, spacing[1]);
+    genShiftedFFTFreq<<<numBlocks, blockSize, 0, stream>>>(colRange, cols, spacing[1]);
 }
 
 void CUDAUtils::cropMatrix(cuFloatComplex* matrix, cuFloatComplex* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols)
@@ -476,7 +534,7 @@ void CUDAUtils::cropMatrix(float* matrix, float* matrix_new, int rows, int cols,
     nppiCopy_32f_C1R(reinterpret_cast<const Npp32f*>(matrix) + srcOffset.y * cols + srcOffset.x, srcStep, reinterpret_cast<Npp32f*>(matrix_new), dstStep, srcSize);
 }
 
-void CUDAUtils::padByConstant(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, float padValue)
+void CUDAUtils::padByConstant(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, float padValue, cudaStream_t stream)
 {
     int newRows = rows + 2 * padRows;
     int newCols = cols + 2 * padCols;
@@ -486,10 +544,13 @@ void CUDAUtils::padByConstant(float* matrix, float* matrix_new, int rows, int co
     int srcStep = cols * sizeof(float);
     int dstStep = newCols * sizeof(float);
 
-    nppiCopyConstBorder_32f_C1R(reinterpret_cast<const Npp32f*>(matrix), srcStep, srcSize, reinterpret_cast<Npp32f*>(matrix_new), dstStep, dstSize, padRows, padCols, padValue);
+    NppStreamContext streamCtx;
+    streamCtx.hStream = stream;
+
+    nppiCopyConstBorder_32f_C1R_Ctx(reinterpret_cast<const Npp32f*>(matrix), srcStep, srcSize, reinterpret_cast<Npp32f*>(matrix_new), dstStep, dstSize, padRows, padCols, padValue, streamCtx);
 }
 
-void CUDAUtils::padByReplicate(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols)
+void CUDAUtils::padByReplicate(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, cudaStream_t stream)
 {
     int newRows = rows + 2 * padRows;
     int newCols = cols + 2 * padCols;
@@ -498,21 +559,24 @@ void CUDAUtils::padByReplicate(float* matrix, float* matrix_new, int rows, int c
     NppiSize dstSize = {newCols, newRows};
     int srcStep = cols * sizeof(float);
     int dstStep = newCols * sizeof(float);
+
+    NppStreamContext streamCtx;
+    streamCtx.hStream = stream;
 
     // Copy the original matrix to the center of the new matrix
-    nppiCopyReplicateBorder_32f_C1R(reinterpret_cast<const Npp32f*>(matrix), srcStep, srcSize, reinterpret_cast<Npp32f*>(matrix_new), dstStep, dstSize, padRows, padCols);
+    nppiCopyReplicateBorder_32f_C1R_Ctx(reinterpret_cast<const Npp32f*>(matrix), srcStep, srcSize, reinterpret_cast<Npp32f*>(matrix_new), dstStep, dstSize, padRows, padCols, streamCtx);
 }
 
-void CUDAUtils::padByFadeout(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols)
+void CUDAUtils::padByFadeout(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, cudaStream_t stream)
 {
     // Calculate the mean of the original matrix as the padding value
     thrust::device_ptr<float> ptr(matrix);
-    float padValue = thrust::reduce(ptr, ptr + rows * cols) / (rows * cols);
+    float padValue = thrust::reduce(thrust::cuda::par.on(stream), ptr, ptr + rows * cols) / (rows * cols);
 
     // Calculate the new size after padding and copy the original matrix to the center
     int newRows = rows + 2 * padRows;
     int newCols = cols + 2 * padCols;
-    padByReplicate(matrix, matrix_new, rows, cols, padRows, padCols);
+    padByReplicate(matrix, matrix_new, rows, cols, padRows, padCols, stream);
 
     // Allocate memory for row and column grids and generate mask components
     float *rowGrid, *colGrid;
@@ -521,27 +585,40 @@ void CUDAUtils::padByFadeout(float* matrix, float* matrix_new, int rows, int col
 
     int blockSize = 1024;
     int numBlocks = (newRows + blockSize - 1) / blockSize;
-    genMaskComponent<<<numBlocks, blockSize>>>(rowGrid, newRows, padRows);
+    genMaskComponent<<<numBlocks, blockSize, 0, stream>>>(rowGrid, newRows, padRows);
 
     numBlocks = (newCols + blockSize - 1) / blockSize;
-    genMaskComponent<<<numBlocks, blockSize>>>(colGrid, newCols, padCols);
+    genMaskComponent<<<numBlocks, blockSize, 0, stream>>>(colGrid, newCols, padCols);
 
     // Generate and apply gradient mask
     float *matrix_mask;
     cudaMalloc(&matrix_mask, newRows * newCols * sizeof(float));
     dim3 blockSize2D(32, 32);
-    dim3 numBlocks2D((newCols + blockSize2D.x - 1) / blockSize2D.x, (newRows + blockSize2D.y - 1) / blockSize2D.y);
-    genMaskMatrix<<<numBlocks2D, blockSize2D>>>(matrix_mask, rowGrid, colGrid, newRows, newCols);
+    dim3 numBlocks2D((newCols + blockSize2D.x - 1) / blockSize2D.x, 
+                     (newRows + blockSize2D.y - 1) / blockSize2D.y);
+    size_t sharedMemSize = (blockSize2D.x + blockSize2D.y) * sizeof(float);
+    genMaskMatrix<<<numBlocks2D, blockSize2D, sharedMemSize, stream>>>(matrix_mask, rowGrid, colGrid, newRows, newCols);
 
     numBlocks = (newRows * newCols + blockSize - 1) / blockSize;
-    multiplyMaskMatrix<<<numBlocks, blockSize>>>(matrix_new, matrix_mask, newRows * newCols, padValue);
+    multiplyMaskMatrix<<<numBlocks, blockSize, 0, stream>>>(matrix_new, matrix_mask, newRows * newCols, padValue);
 
-    cudaFree(matrix_mask);
-    cudaFree(rowGrid);
-    cudaFree(colGrid);
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        float* matrix_mask = static_cast<float*>(userData);
+        cudaFree(matrix_mask);
+    }, matrix_mask, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        float* rowGrid = static_cast<float*>(userData);
+        cudaFree(rowGrid);
+    }, rowGrid, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        float* colGrid = static_cast<float*>(userData);
+        cudaFree(colGrid);
+    }, colGrid, 0);
 }
 
-void CUDAUtils::padMatrix(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, PaddingType type, float padValue)
+void CUDAUtils::padMatrix(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, PaddingType type, float padValue, cudaStream_t stream)
 {
     if (padRows < 0 || padCols < 0) {
         throw std::invalid_argument("Padding size cannot be less than 0!");
@@ -549,13 +626,13 @@ void CUDAUtils::padMatrix(float* matrix, float* matrix_new, int rows, int cols, 
 
     switch (type) {
         case Constant: 
-            padByConstant(matrix, matrix_new, rows, cols, padRows, padCols, padValue);
+            padByConstant(matrix, matrix_new, rows, cols, padRows, padCols, padValue, stream);
             break;
         case Replicate: 
-            padByReplicate(matrix, matrix_new, rows, cols, padRows, padCols);
+            padByReplicate(matrix, matrix_new, rows, cols, padRows, padCols, stream);
             break;
         case Fadeout: 
-            padByFadeout(matrix, matrix_new, rows, cols, padRows, padCols);
+            padByFadeout(matrix, matrix_new, rows, cols, padRows, padCols, stream);
             break;
         default:
             throw std::invalid_argument("Invalid padding type!");
@@ -578,8 +655,10 @@ void CUDAUtils::ctfRegWeights(float *regWeights, const IntArray &imSize, const F
     genRegComponent<<<gridColSize, blockSize>>>(colRange, fresnelNumber[1], imSize[1]);
 
     dim3 blockSize2D(32, 32);
-    dim3 gridSize2D((imSize[1] + blockSize2D.x - 1) / blockSize2D.x, (imSize[0] + blockSize2D.y - 1) / blockSize2D.y);
-    multiplyObliFactor_2<<<gridSize2D, blockSize2D>>>(regWeights, rowRange, colRange, imSize[0], imSize[1]);
+    dim3 gridSize2D((imSize[1] + blockSize2D.x - 1) / blockSize2D.x, 
+                     (imSize[0] + blockSize2D.y - 1) / blockSize2D.y);
+    size_t sharedMemSize = (blockSize2D.x + blockSize2D.y) * sizeof(float);
+    multiplyObliFactor_2<<<gridSize2D, blockSize2D, sharedMemSize>>>(regWeights, rowRange, colRange, imSize[0], imSize[1]);
 
     float sigma = std::sqrt(2.0f) * (std::sqrt(2.0f) - 1.0f) / 2.0f;
     blockSize = 1024;
@@ -591,7 +670,7 @@ void CUDAUtils::ctfRegWeights(float *regWeights, const IntArray &imSize, const F
     cudaFree(colRange);
 }
 
-void CUDAPropKernel::genByFourier(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber)
+void CUDAPropKernel::genByFourier(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber, cudaStream_t stream)
 {
     float *rowRange;
     float *colRange;
@@ -599,7 +678,7 @@ void CUDAPropKernel::genByFourier(cuFloatComplex* kernel, const IntArray &imSize
     cudaMalloc(&colRange, imSize[1] * sizeof(float));
 
     FArray spacing(2, 1.0f);
-    CUDAUtils::genFFTFreq(rowRange, colRange, imSize, spacing);
+    CUDAUtils::genFFTFreq(rowRange, colRange, imSize, spacing, stream);
 
     cuFloatComplex *rowFreq;
     cuFloatComplex *colFreq;
@@ -609,23 +688,40 @@ void CUDAPropKernel::genByFourier(cuFloatComplex* kernel, const IntArray &imSize
     // Generate row and column components
     int blockSize1D = 512;
     int numBlocks1D = (imSize[0] + blockSize1D - 1) / blockSize1D;
-    genFourierComponent<<<numBlocks1D, blockSize1D>>>(rowFreq, rowRange, imSize[0], fresnelNumber[0]);
+    genFourierComponent<<<numBlocks1D, blockSize1D, 0, stream>>>(rowFreq, rowRange, imSize[0], fresnelNumber[0]);
 
     numBlocks1D = (imSize[1] + blockSize1D - 1) / blockSize1D;
-    genFourierComponent<<<numBlocks1D, blockSize1D>>>(colFreq, colRange, imSize[1], fresnelNumber[1]);
+    genFourierComponent<<<numBlocks1D, blockSize1D, 0, stream>>>(colFreq, colRange, imSize[1], fresnelNumber[1]);
 
     // Generate kernel
     dim3 blockSize2D(32, 32);
-    dim3 numBlocks2D((imSize[1] + blockSize2D.x - 1) / blockSize2D.x, (imSize[0] + blockSize2D.y - 1) / blockSize2D.y);
-    genFourierKernel<<<numBlocks2D, blockSize2D>>>(kernel, rowFreq, colFreq, imSize[0], imSize[1]);
+    dim3 numBlocks2D((imSize[1] + blockSize2D.x - 1) / blockSize2D.x, 
+                     (imSize[0] + blockSize2D.y - 1) / blockSize2D.y);
+    size_t sharedMemSize = (blockSize2D.x + blockSize2D.y) * sizeof(cuFloatComplex);
+    genFourierKernel<<<numBlocks2D, blockSize2D, sharedMemSize, stream>>>(kernel, rowFreq, colFreq, imSize[0], imSize[1]);
 
-    cudaFree(rowFreq);
-    cudaFree(colFreq);
-    cudaFree(rowRange);
-    cudaFree(colRange);
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        float *rowRange = static_cast<float*>(userData);
+        cudaFree(rowRange);
+    }, rowRange, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        float *colRange = static_cast<float*>(userData);
+        cudaFree(colRange);
+    }, colRange, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        cuFloatComplex *rowFreq = static_cast<cuFloatComplex*>(userData);
+        cudaFree(rowFreq);
+    }, rowFreq, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        cuFloatComplex *colFreq = static_cast<cuFloatComplex*>(userData);
+        cudaFree(colFreq);
+    }, colFreq, 0);
 }
 
-void CUDAPropKernel::genByChirp(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber)
+void CUDAPropKernel::genByChirp(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber, cudaStream_t stream)
 {
     float *rowRange;
     float *colRange;
@@ -633,7 +729,7 @@ void CUDAPropKernel::genByChirp(cuFloatComplex* kernel, const IntArray &imSize, 
     cudaMalloc(&colRange, imSize[1] * sizeof(float));
 
     FArray spacing {2.0f * M_PIf32 / imSize[0], 2.0f * M_PIf32 / imSize[1]};
-    CUDAUtils::genFFTFreq(rowRange, colRange, imSize, spacing);
+    CUDAUtils::genFFTFreq(rowRange, colRange, imSize, spacing, stream);
 
     // Compute kernel initial coefficient
     std::complex<float> init = MathUtils::getInitCoeff(fresnelNumber);
@@ -647,28 +743,48 @@ void CUDAPropKernel::genByChirp(cuFloatComplex* kernel, const IntArray &imSize, 
     // Generate row and column components
     int blockSize1D = 512;
     int numBlocks1D = (imSize[0] + blockSize1D - 1) / blockSize1D;
-    genChirpComponent<<<numBlocks1D, blockSize1D>>>(rowFreq, rowRange, imSize[0], fresnelNumber[0]);
+    genChirpComponent<<<numBlocks1D, blockSize1D, 0, stream>>>(rowFreq, rowRange, imSize[0], fresnelNumber[0]);
 
     numBlocks1D = (imSize[1] + blockSize1D - 1) / blockSize1D;
-    genChirpComponent<<<numBlocks1D, blockSize1D>>>(colFreq, colRange, imSize[1], fresnelNumber[1]);
+    genChirpComponent<<<numBlocks1D, blockSize1D, 0, stream>>>(colFreq, colRange, imSize[1], fresnelNumber[1]);
 
+    // Execute FFT in parallel
     CUFFTUtils rowFFTUtils(imSize[0]);
     CUFFTUtils colFFTUtils(imSize[1]);
+    cufftSetStream(rowFFTUtils.getPlan(), stream);
+    cufftSetStream(colFFTUtils.getPlan(), stream);
     rowFFTUtils.fft_fwd(rowFreq);
     colFFTUtils.fft_fwd(colFreq);
 
     // Generate kernel
     dim3 blockSize2D(32, 32);
-    dim3 numBlocks2D((imSize[1] + blockSize2D.x - 1) / blockSize2D.x, (imSize[0] + blockSize2D.y - 1) / blockSize2D.y);
-    genChirpKernel<<<numBlocks2D, blockSize2D>>>(kernel, rowFreq, colFreq, imSize[0], imSize[1], initCoeff);
+    dim3 numBlocks2D((imSize[1] + blockSize2D.x - 1) / blockSize2D.x, 
+                     (imSize[0] + blockSize2D.y - 1) / blockSize2D.y);
+    size_t sharedMemSize = (blockSize2D.x + blockSize2D.y) * sizeof(cuFloatComplex);
+    genChirpKernel<<<numBlocks2D, blockSize2D, sharedMemSize, stream>>>(kernel, rowFreq, colFreq, imSize[0], imSize[1], initCoeff);
 
-    cudaFree(rowFreq);
-    cudaFree(colFreq);
-    cudaFree(rowRange);
-    cudaFree(colRange);
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        float *rowRange = static_cast<float*>(userData);
+        cudaFree(rowRange);
+    }, rowRange, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        float *colRange = static_cast<float*>(userData);
+        cudaFree(colRange);
+    }, colRange, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        cuFloatComplex *rowFreq = static_cast<cuFloatComplex*>(userData);
+        cudaFree(rowFreq);
+    }, rowFreq, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        cuFloatComplex *colFreq = static_cast<cuFloatComplex*>(userData);
+        cudaFree(colFreq);
+    }, colFreq, 0);
 }
 
-void CUDAPropKernel::genByChirpLimited(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber)
+void CUDAPropKernel::genByChirpLimited(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber, cudaStream_t stream)
 {
     float *rowRange;
     float *colRange;
@@ -676,7 +792,7 @@ void CUDAPropKernel::genByChirpLimited(cuFloatComplex* kernel, const IntArray &i
     cudaMalloc(&colRange, imSize[1] * sizeof(float));
 
     FArray spacing {2.0f * M_PIf32 / imSize[0], 2.0f * M_PIf32 / imSize[1]};
-    CUDAUtils::genFFTFreq(rowRange, colRange, imSize, spacing);
+    CUDAUtils::genFFTFreq(rowRange, colRange, imSize, spacing, stream);
 
     // Compute kernel initial coefficient
     std::complex<float> init = MathUtils::getInitCoeff(fresnelNumber);
@@ -690,37 +806,60 @@ void CUDAPropKernel::genByChirpLimited(cuFloatComplex* kernel, const IntArray &i
     int blockSize1D = 512;
     int rowBlocks = (imSize[0] + blockSize1D - 1) / blockSize1D;
     int colBlocks = (imSize[1] + blockSize1D - 1) / blockSize1D;
-    genChirpComponent<<<rowBlocks, blockSize1D>>>(rowFreq, rowRange, imSize[0], fresnelNumber[0]);
-    genChirpComponent<<<colBlocks, blockSize1D>>>(colFreq, colRange, imSize[1], fresnelNumber[1]);
+    genChirpComponent<<<rowBlocks, blockSize1D, 0, stream>>>(rowFreq, rowRange, imSize[0], fresnelNumber[0]);
+    genChirpComponent<<<colBlocks, blockSize1D, 0, stream>>>(colFreq, colRange, imSize[1], fresnelNumber[1]);
 
     // Generate kernel
     dim3 blockSize2D(32, 32);
-    dim3 numBlocks2D((imSize[1] + blockSize2D.x - 1) / blockSize2D.x, (imSize[0] + blockSize2D.y - 1) / blockSize2D.y);
-    genChirpKernel<<<numBlocks2D, blockSize2D>>>(kernel, rowFreq, colFreq, imSize[0], imSize[1], initCoeff);
+    dim3 numBlocks2D((imSize[1] + blockSize2D.x - 1) / blockSize2D.x, 
+                     (imSize[0] + blockSize2D.y - 1) / blockSize2D.y);
+    size_t sharedMemSize = (blockSize2D.x + blockSize2D.y) * sizeof(cuFloatComplex);
+    genChirpKernel<<<numBlocks2D, blockSize2D, sharedMemSize, stream>>>(kernel, rowFreq, colFreq, imSize[0], imSize[1], initCoeff);
 
     // Multiply by obliquity factor
-    multiplyObliFactor_1<<<rowBlocks, blockSize1D>>>(rowRange, imSize[0], fresnelNumber[0]);
-    multiplyObliFactor_1<<<colBlocks, blockSize1D>>>(colRange, imSize[1], fresnelNumber[1]);
+    multiplyObliFactor_1<<<rowBlocks, blockSize1D, 0, stream>>>(rowRange, imSize[0], fresnelNumber[0]);
+    multiplyObliFactor_1<<<colBlocks, blockSize1D, 0, stream>>>(colRange, imSize[1], fresnelNumber[1]);
     
     float *matrix;
     cudaMalloc(&matrix, imSize[0] * imSize[1] * sizeof(float));
-    multiplyObliFactor_2<<<numBlocks2D, blockSize2D>>>(matrix, rowRange, colRange, imSize[0], imSize[1]);
+    sharedMemSize = (blockSize2D.x + blockSize2D.y) * sizeof(float);
+    multiplyObliFactor_2<<<numBlocks2D, blockSize2D, sharedMemSize, stream>>>(matrix, rowRange, colRange, imSize[0], imSize[1]);
     
     int blockSize = 1024;
     int numBlocks = (imSize[0] * imSize[1] + blockSize - 1) / blockSize;
-    multiplyObliFactor_3<<<numBlocks, blockSize>>>(kernel, matrix, imSize[0] * imSize[1]);
+    multiplyObliFactor_3<<<numBlocks, blockSize, 0, stream>>>(kernel, matrix, imSize[0] * imSize[1]);
 
     CUFFTUtils fftUtils(imSize[0], imSize[1], 1);
+    cufftSetStream(fftUtils.getPlan(), stream);
     fftUtils.fft_fwd(kernel);
 
-    cudaFree(matrix);
-    cudaFree(rowFreq);
-    cudaFree(colFreq);
-    cudaFree(rowRange);
-    cudaFree(colRange);
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        float *matrix = static_cast<float*>(userData);
+        cudaFree(matrix);
+    }, matrix, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        float *rowRange = static_cast<float*>(userData);
+        cudaFree(rowRange);
+    }, rowRange, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        float *colRange = static_cast<float*>(userData);
+        cudaFree(colRange);
+    }, colRange, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        cuFloatComplex *rowFreq = static_cast<cuFloatComplex*>(userData);
+        cudaFree(rowFreq);
+    }, rowFreq, 0);
+
+    cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
+        cuFloatComplex *colFreq = static_cast<cuFloatComplex*>(userData);
+        cudaFree(colFreq);
+    }, colFreq, 0);
 }
 
-void CUDAPropKernel::generateKernel(cuFloatComplex* kernel, const IntArray &imSize, FArray &fresnelNumber, Type type)
+void CUDAPropKernel::generateKernel(cuFloatComplex* kernel, const IntArray &imSize, FArray &fresnelNumber, Type type, cudaStream_t stream)
 {
     if (fresnelNumber.size() != 1 && fresnelNumber.size() != imSize.size()) {
         throw std::invalid_argument("Invalid Fresnel number!");
@@ -732,13 +871,13 @@ void CUDAPropKernel::generateKernel(cuFloatComplex* kernel, const IntArray &imSi
     switch (type)
     {
         case Fourier:
-            genByFourier(kernel, imSize, fresnelNumber);
+            genByFourier(kernel, imSize, fresnelNumber, stream);
             break;
         case Chirp:
-            genByChirp(kernel, imSize, fresnelNumber);
+            genByChirp(kernel, imSize, fresnelNumber, stream);
             break;
         case ChirpLimited:
-            genByChirpLimited(kernel, imSize, fresnelNumber);
+            genByChirpLimited(kernel, imSize, fresnelNumber, stream);
             break;
         default:
             throw std::invalid_argument("Invalid propagation kernel type!");

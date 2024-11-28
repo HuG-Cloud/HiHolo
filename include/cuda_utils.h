@@ -24,9 +24,11 @@ class CUFFTUtils
     public:
         CUFFTUtils(int in_numel);
         CUFFTUtils(int in_rows, int in_cols, int in_batchSize);
+        cufftHandle getPlan() {return plan;}
+        cufftHandle getPlanBatch() {return plan_batch;}
+
         void fft_fwd(cuFloatComplex *complexVec);
         void fft_bwd(cuFloatComplex *complexVec);
-
         // The size of complexWave is numel * batchSize
         void fft_fwd_batch(cuFloatComplex *complexWave);
         void fft_bwd_batch(cuFloatComplex *complexWave);
@@ -36,26 +38,27 @@ class CUFFTUtils
 namespace CUDAPropKernel
 {
     enum Type{Fourier, Chirp, ChirpLimited};
-    void generateKernel(cuFloatComplex* kernel, const IntArray &imSize, FArray &fresnelNumber, Type type);
-    void genByFourier(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber);
-    void genByChirp(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber);
-    void genByChirpLimited(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber);
+    void generateKernel(cuFloatComplex* kernel, const IntArray &imSize, FArray &fresnelNumber, Type type, cudaStream_t stream = 0);
+    void genByFourier(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber, cudaStream_t stream = 0);
+    void genByChirp(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber, cudaStream_t stream = 0);
+    void genByChirpLimited(cuFloatComplex* kernel, const IntArray &imSize, const FArray &fresnelNumber, cudaStream_t stream = 0);
 }
 
 namespace CUDAUtils
 {
-    void genFFTFreq(float* rowRange, float* colRange, const IntArray &imSize, FArray &spacing);
+    void genFFTFreq(float* rowRange, float* colRange, const IntArray &imSize, FArray &spacing, cudaStream_t stream = 0);
     
     enum PaddingType {Constant, Replicate, Fadeout};
 
     void cropMatrix(cuFloatComplex* matrix, cuFloatComplex* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols);
     void cropMatrix(float* matrix, float* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols);
-    void padByConstant(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, float padValue);
-    void padByReplicate(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols);
-    void padByFadeout(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols);
+    void padByConstant(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, float padValue, cudaStream_t stream = 0);
+    void padByReplicate(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, cudaStream_t stream = 0);
+    void padByFadeout(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, cudaStream_t stream = 0);
     // Pad matrix to given size in different ways
-    void padMatrix(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, PaddingType type, float padValue = 0.0f);
+    void padMatrix(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, PaddingType type, float padValue = 0.0f, cudaStream_t stream = 0);
 
+    // Generate regularization weights for CTF phase retrieval in Fourier space
     void ctfRegWeights(float *regWeights, const IntArray &imSize, const FArray &fresnelNumber, float lowFreqLim, float highFreqLim);
 }
 

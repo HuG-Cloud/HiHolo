@@ -13,10 +13,10 @@ LDFLAGS = -L/usr/local/lib -lopencv_core -lopencv_imgproc -lopencv_highgui \
 		  
 
 # define output file
-TARGET = holo_recons
+TARGET = holo_recons_iter
 
 # define source file
-CPP_SRCS = examples/argRecons.cpp src/math_utils.cpp src/imageio_utils.cpp src/ProjectionSolver.cpp
+CPP_SRCS = examples/arg_recons_iter.cpp src/math_utils.cpp src/imageio_utils.cpp src/ProjectionSolver.cpp
 CUDA_SRCS = src/Propagator.cu src/WaveField.cu src/Projector.cu src/holo_recons.cu src/cuda_utils.cu
 
 # 定义依赖文件
