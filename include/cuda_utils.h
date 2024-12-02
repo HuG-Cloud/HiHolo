@@ -128,4 +128,8 @@ __global__ void addFloatData(float* data, const float* newData, int numel);
 __global__ void complexDivideFloat(cuFloatComplex* data, const float* newData, int numel);
 __global__ void extractRealData(const cuFloatComplex* data, float* realData, int numel);
 
+__global__ void displayMatrix(const float* matrix, int rows, int cols);
+__global__ void displayComplexMatrix(const cuFloatComplex* matrix, int rows, int cols);
+
+__global__ void floatToComplex(const float* data, cuFloatComplex* complexData, int numel);
 #endif

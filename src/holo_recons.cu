@@ -41,6 +41,18 @@ namespace PhaseRetrieval
     FArray reconstruct_ctf(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelnumbers, float lowFreqLim, float highFreqLim,
                            float betaDeltaRatio, const IntArray &padSize, CUDAUtils::PaddingType padType)
     {
+        // Add GPU environment check
+        int deviceCount;
+        cudaError_t error = cudaGetDeviceCount(&deviceCount);
+        if (error != cudaSuccess || deviceCount == 0) {
+            throw std::runtime_error("No CUDA capable GPU device found!");
+        }
+
+        cudaDeviceProp deviceProp;
+        cudaGetDeviceProperties(&deviceProp, 0);
+        std::cout << "Using GPU device: " << deviceProp.name << std::endl;
+        std::cout << "Compute capability: " << deviceProp.major << "." << deviceProp.minor << std::endl;
+
         /* Check correctness and compatibility of measurements and fresnel numbers */
         if (holograms.empty() || imSize.empty())
             throw std::invalid_argument("Invalid measurement data or image size!");
@@ -118,7 +130,7 @@ namespace PhaseRetrieval
         cudaMalloc((void**)&tempHologram, newSize[0] * newSize[1] * sizeof(cuFloatComplex));
 
         cufftHandle plan;
-        cufftPlan2d(&plan, newSize[0], newSize[1], CUFFT_R2C);
+        cufftPlan2d(&plan, newSize[1], newSize[0], CUFFT_C2C);
 
         // Define grid and block sizes for different kernels
         int blockSize1D = 512;
@@ -144,13 +156,14 @@ namespace PhaseRetrieval
             computeCTF<<<gridSize, blockSize>>>(tempCTF, betaDeltaRatio, newSize[0] * newSize[1]);
             
             // Multiply FFT of holograms by CTF transfer function
-            cufftExecR2C(plan, holograms_gpu + i * newSize[0] * newSize[1], tempHologram);
+            floatToComplex<<<gridSize, blockSize>>>(holograms_gpu + i * newSize[0] * newSize[1], tempHologram, newSize[0] * newSize[1]);
+            cufftExecC2C(plan, tempHologram, tempHologram, CUFFT_FORWARD);
             CTFMultiplyHologram<<<gridSize, blockSize>>>(tempHologram, tempCTF, newSize[0] * newSize[1]);
             addWaveField<<<gridSize, blockSize>>>(CTFHolograms, tempHologram, newSize[0] * newSize[1]);
             addSquareData<<<gridSize, blockSize>>>(CTFSq, tempCTF, newSize[0] * newSize[1]);
         }
+        
         scaleFloatData<<<gridSize, blockSize>>>(CTFSq, newSize[0] * newSize[1], 2.0f);
-
         // Correction for zero-frequency of Fourier transform
         subtractConstant<<<1, 1>>>(CTFHolograms, newSize[0] * newSize[1] * numImages * betaDeltaRatio, 1);
         
@@ -172,8 +185,6 @@ namespace PhaseRetrieval
 
         // Final calculation and inverse Fourier transform
         complexDivideFloat<<<gridSize, blockSize>>>(CTFHolograms, regWeights, newSize[0] * newSize[1]);
-        cufftPlan2d(&plan, newSize[0], newSize[1], CUFFT_C2C);
-
         cufftExecC2C(plan, CTFHolograms, CTFHolograms, CUFFT_INVERSE);
         scaleComplexData<<<gridSize, blockSize>>>(CTFHolograms, newSize[0] * newSize[1], 1.0f / (newSize[0] * newSize[1]));
         extractRealData<<<gridSize, blockSize>>>(CTFHolograms, tempCTF, newSize[0] * newSize[1]);
@@ -206,6 +217,18 @@ namespace PhaseRetrieval
                           ProjectionSolver::Algorithm algorithm, const FArray &algoParameters, const IntArray &padSize, float minAmplitude, float maxAmplitude,
                           PMagnitudeCons::Type projectionType, CUDAPropKernel::Type kernelType, CUDAUtils::PaddingType padType, bool calcError)
     {
+        // Add GPU environment check
+        int deviceCount;
+        cudaError_t error = cudaGetDeviceCount(&deviceCount);
+        if (error != cudaSuccess || deviceCount == 0) {
+            throw std::runtime_error("No CUDA capable GPU device found!");
+        }
+
+        cudaDeviceProp deviceProp;
+        cudaGetDeviceProperties(&deviceProp, 0);
+        std::cout << "Using GPU device: " << deviceProp.name << std::endl;
+        std::cout << "Compute capability: " << deviceProp.major << "." << deviceProp.minor << std::endl;
+
         /* Check correctness and compatibility of measurements and fresnel numbers */
         if (holograms.empty() || imSize.empty())
             throw std::invalid_argument("Invalid measurement data or image size!");

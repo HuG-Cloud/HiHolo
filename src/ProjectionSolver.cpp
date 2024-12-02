@@ -106,7 +106,6 @@ void ProjectionSolver::updateStepAP()
     setResidual(2, magnitudeResult.residual);
     PMPsi = magnitudeResult.projection;
     psi = objectResult.projection;
-    
 }
 
 void ProjectionSolver::updateStepRAAR()
@@ -129,7 +128,6 @@ void ProjectionSolver::updateStepRAAR()
     PMPsi = magnitudeResult.projection;
     // update the final psi, xNew = (b/2) .* (xNew + x) + (1-b) .* xPM;
     psi = (objectResult.reflection + psi) * (b / 2.0f) + (1.0f - b) * PMPsi;
-
 }
 
 /* Hybrid Input-Output Algorithm */
@@ -147,7 +145,6 @@ void ProjectionSolver::updateStepHIO()
     setResidual(2, magnitudeResult.residual);
     PMPsi = magnitudeResult.projection;
     psi = (objectResult.reflection + psi + (1.0f - b) * PMPsi) * 0.5f;
-    
 }
 
 /* Dougles-Rachford Alternating Projections */
@@ -165,7 +162,6 @@ void ProjectionSolver::updateStepDRAP()
     setResidual(2, magnitudeResult.residual);
     PMPsi = magnitudeResult.projection;
     psi = objectResult.projection - (PMPsi - psi) * b;
-
 }
 
 // Each index represents the different errors

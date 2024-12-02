@@ -8,8 +8,8 @@ CUFFTUtils::CUFFTUtils(int in_numel): numel(in_numel)
 CUFFTUtils::CUFFTUtils(int in_rows, int in_cols, int in_batchSize):
 rows(in_rows), cols(in_cols), batchSize(in_batchSize), numel(in_rows * in_cols)
 {
-    cufftPlan2d(&plan, rows, cols, CUFFT_C2C);
-    int size[2] = {rows, cols};
+    cufftPlan2d(&plan, cols, rows, CUFFT_C2C);
+    int size[2] = {cols, rows};
     cufftPlanMany(&plan_batch, 2, size, nullptr, 1, numel, nullptr, 1, numel, CUFFT_C2C, batchSize);
 }
 
@@ -72,7 +72,6 @@ __global__ void computeAmplitude(cuFloatComplex *complexWave, float *amplitude, 
     if (idx < numel) {
         amplitude[idx] = hypotf(complexWave[idx].x, complexWave[idx].y);
     }
-
 }
 
 __global__ void computePhase(cuFloatComplex *complexWave, float *phase, int numel)
@@ -453,6 +452,14 @@ __global__ void extractRealData(const cuFloatComplex* data, float* realData, int
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < numel) {
         realData[idx] = data[idx].x;
+    }
+}
+
+__global__ void floatToComplex(const float* data, cuFloatComplex* complexData, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        complexData[idx] = make_cuFloatComplex(data[idx], 0.0f);
     }
 }
 
@@ -884,4 +891,39 @@ void CUDAPropKernel::generateKernel(cuFloatComplex* kernel, const IntArray &imSi
             break;
     }
 
+}
+
+__global__ void displayMatrix(const float* matrix, int rows, int cols) 
+{
+    // Print the matrix using only one thread
+    if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0) {
+        printf("\nMatrix %dx%d:\n", rows, cols);
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                printf("%8.4f ", matrix[i * cols + j]);
+            }
+            printf("\n");
+        }
+        printf("\n");
+    }
+}
+
+__global__ void displayComplexMatrix(const cuFloatComplex* matrix, int rows, int cols) 
+{
+    // Print the matrix using only one thread
+    if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0) {
+        printf("\nComplex Matrix %dx%d:\n", rows, cols);
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                int idx = i * cols + j;
+                if (matrix[idx].y >= 0) {
+                    printf("%6.3f+%6.3fi ", matrix[idx].x, matrix[idx].y);
+                } else {
+                    printf("%6.3f%6.3fi ", matrix[idx].x, matrix[idx].y);
+                }
+            }
+            printf("\n");
+        }
+        printf("\n");
+    }
 }

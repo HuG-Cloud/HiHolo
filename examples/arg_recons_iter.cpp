@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
            .default_value(false).implicit_value(true);
 
     program.add_argument("--padding_type", "-p")
-           .help("type of padding matrix around [0: const, 1: replicate, 2: fadeout]")
+           .help("type of padding matrix around [0: constant, 1: replicate, 2: fadeout]")
            .default_value(1).scan<'i', int>();
 
     try {
@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
 
     // Display the 2 results and save to HDF5 file
     // OUtils::savePhasegrams("/home/hug/Downloads/HoloTomo_Data/reconsfile.h5", "phasedata", result[0], imSize[0], imSize[1]);
-    // ImageUtils::displayNDArray(result, imSize[0], imSize[1], std::vector<std::string>{"phase", "amplitude"});
+    ImageUtils::displayNDArray(result, imSize[0], imSize[1], std::vector<std::string>{"phase", "amplitude"});
 
     return 0;
 }

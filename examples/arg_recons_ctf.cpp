@@ -36,7 +36,7 @@ int main(int argc, char* argv[])
            .nargs(2).scan<'i', int>();
 
     program.add_argument("--padding_type", "-p")
-           .help("type of padding matrix around [0: const, 1: replicate, 2: fadeout]")
+           .help("type of padding matrix around [0: constant, 1: replicate, 2: fadeout]")
            .default_value(1).scan<'i', int>();
 
     try {
@@ -70,8 +70,8 @@ int main(int argc, char* argv[])
     CUDAUtils::PaddingType padType;
 
     if (program.is_used("-s")) {
-        padSize = program.get<IntArray>("-s");
-        padType = static_cast<CUDAUtils::PaddingType>(program.get<int>("-p"));
+       padSize = program.get<IntArray>("-s");
+       padType = static_cast<CUDAUtils::PaddingType>(program.get<int>("-p"));
     }
 
     // Read regularisation parameters
@@ -90,10 +90,10 @@ int main(int argc, char* argv[])
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
 
-    // F2DArray result {phase};
+    F2DArray result {phase};
     // Display the phase result and save to HDF5 file
     // OUtils::savePhasegrams("/home/hug/Downloads/HoloTomo_Data/reconsfile.h5", "phasedata", result[0], imSize[0], imSize[1]);
-    // ImageUtils::displayNDArray(result, imSize[0], imSize[1], std::vector<std::string>{"phase"});
+    ImageUtils::displayNDArray(result, imSize[0], imSize[1], std::vector<std::string>{"phase"});
 
     return 0;
 }

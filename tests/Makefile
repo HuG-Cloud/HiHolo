@@ -1,19 +1,22 @@
 CXX = g++
 NVCC = nvcc
 
-CXXFLAGS = -g -std=c++17 -I/usr/local/cuda/include -I../include
+CXXFLAGS = -g -std=c++17 -I/usr/local/include/opencv4 -I/usr/local/cuda/include \
+		   -I/usr/include/hdf5/serial -I../include
 
 NVCCFLAGS = -I../include
 
-LDFLAGS = -L/usr/local/cuda/lib64 -lcudart -lcufft -lnppidei -lnppc
+LDFLAGS = -L/usr/local/lib -lopencv_core -lopencv_imgproc -lopencv_highgui \
+		  -L/usr/local/cuda/lib64 -lcudart -lcufft -lnppidei -lnppc\
+          -L/usr/lib/x86_64-linux-gnu/hdf5/serial -lhdf5_cpp -lhdf5 \
 		  
 
 # define output file
-TARGET = testErfc
+TARGET = testCTF
 
 # define source file
-CPP_SRCS = ../src/math_utils.cpp
-CUDA_SRCS = ../src/cuda_utils.cu testErfc.cu
+CPP_SRCS = ../src/math_utils.cpp ../src/imageio_utils.cpp testCTF.cpp
+CUDA_SRCS = ../src/cuda_utils.cu ../src/holo_recons.cu 
 
 # 定义依赖文件
 CPP_OBJS = $(CPP_SRCS:.cpp=.o)
