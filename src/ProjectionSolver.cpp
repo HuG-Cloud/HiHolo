@@ -28,16 +28,6 @@ ProjectionSolver::~ProjectionSolver() {}
 
 IterationResult ProjectionSolver::execute(int iterations)
 {   
-    // print iterative algorithm
-    std::cout << "Choosing algorithm: ";
-    switch (algorithm) {
-        case AP: std::cout << "AP"; break;
-        case RAAR: std::cout << "RAAR"; break;
-        case HIO: std::cout << "HIO"; break;
-        case DRAP: std::cout << "DRAP"; break;
-    }
-    std::cout << std::endl;
-
     /* error measurements
        initialize the errors */
     for (int i = 0; i < residual.size(); i++) {
@@ -47,7 +37,6 @@ IterationResult ProjectionSolver::execute(int iterations)
             residual[i].resize(iterations, FloatInf);
     }
     
-    std::cout << "Start iteration" << std::endl;
     while (!isConverged && currentIteration < iterations)
     {   
         // std::cout << "Iteration " << currentIteration << std::endl;

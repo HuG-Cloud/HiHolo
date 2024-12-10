@@ -230,10 +230,6 @@ namespace PhaseRetrieval
         std::cout << "Using GPU device: " << deviceProp.name << std::endl;
         std::cout << "Compute capability: " << deviceProp.major << "." << deviceProp.minor << std::endl;
 
-        /* Check correctness and compatibility of measurements and fresnel numbers */
-        if (holograms.empty() || imSize.empty())
-            throw std::invalid_argument("Invalid measurement data or image size!");
-  
         if (fresnelNumbers.size() != numImages)
             throw std::invalid_argument("The number of images and fresnel numbers does not match!");
 
@@ -268,11 +264,32 @@ namespace PhaseRetrieval
             cudaFree(temp);
         }
 
+        // print iterative algorithm
+        std::cout << "Choosing algorithm: ";
+        switch (algorithm) {
+            case ProjectionSolver::AP: std::cout << "AP"; break;
+            case ProjectionSolver::RAAR: std::cout << "RAAR"; break;
+            case ProjectionSolver::HIO: std::cout << "HIO"; break;
+            case ProjectionSolver::DRAP: std::cout << "DRAP"; break;
+            default: std::cout << "Unknown"; break;
+        }
+        std::cout << std::endl;
+
         // Construct projector on measured holograms
         int blockSize = 1024;
         int gridSize = (newSize[0] * newSize[1] * numImages + blockSize - 1) / blockSize;
         sqrtAmplitude<<<gridSize, blockSize>>>(holograms_gpu, newSize[0] * newSize[1] * numImages);
-        Projector *PM = new PMagnitudeCons(holograms_gpu, numImages, newSize, fresnelNumbers, projectionType, kernelType, calcError);
+
+        std::vector<PropagatorPtr> propagators;
+        if (projectionType == PMagnitudeCons::Averaged) {
+            propagators.push_back(std::make_shared<Propagator>(newSize, fresnelNumbers, kernelType));
+        } else {
+            for (const auto &fNumber: fresnelNumbers) {
+                F2DArray singleFresnel {fNumber};
+                propagators.push_back(std::make_shared<Propagator>(newSize, singleFresnel, kernelType));
+            }
+        }
+        Projector *PM = new PMagnitudeCons(holograms_gpu, numImages, newSize, propagators, projectionType, calcError);
 
         // Construct projector on amplitude constraint of object
         Projector *PS = new PAmplitudeCons(minAmplitude, maxAmplitude);
@@ -346,4 +363,115 @@ namespace PhaseRetrieval
         return result;
     }
 
+    Reconstructor::Reconstructor(int batchsize, int images, const IntArray &imsize, const F2DArray &fresnelNumbers, int iter, ProjectionSolver::Algorithm algo,
+                                  const FArray &algoParams, const IntArray &padsize, float minAmplitude, float maxAmplitude, PMagnitudeCons::Type projType, 
+                                  CUDAPropKernel::Type kernelType, CUDAUtils::PaddingType padtype): batchSize(batchsize), numImages(images), imSize(imsize),
+                                  newSize(imsize), iteration(iter), algorithm(algo), algoParameters(algoParams), padSize(padsize), projectionType(projType), padType(padtype)
+    {
+        if (!padSize.empty()) {
+            newSize[0] += 2 * padSize[0];
+            newSize[1] += 2 * padSize[1];
+            cudaMalloc((void**)&d_paddedHolograms, newSize[0] * newSize[1] * numImages * sizeof(float));
+            streams = new cudaStream_t[numImages];
+            for (int i = 0; i < numImages; i++) {
+                cudaStreamCreate(&streams[i]);
+            }
+        }
+
+        cudaMalloc((void**)&d_holograms, batchSize * numImages * imSize[0] * imSize[1] * sizeof(float));
+        cudaMalloc((void**)&complexWave, newSize[0] * newSize[1] * sizeof(cuFloatComplex));
+        cudaMalloc((void**)&croppedComplexWave, imSize[0] * imSize[1] * sizeof(cuFloatComplex));
+        cudaMalloc((void**)&d_phase, imSize[0] * imSize[1] * sizeof(float));
+        
+        // print iterative algorithm
+        std::cout << "Choosing algorithm: ";
+        switch (algorithm) {
+            case ProjectionSolver::AP: std::cout << "AP"; break;
+            case ProjectionSolver::RAAR: std::cout << "RAAR"; break;
+            case ProjectionSolver::HIO: std::cout << "HIO"; break;
+            case ProjectionSolver::DRAP: std::cout << "DRAP"; break;
+            default: std::cout << "Unknown"; break;
+        }
+        std::cout << std::endl;
+
+        if (projectionType == PMagnitudeCons::Averaged) {
+            propagators.push_back(std::make_shared<Propagator>(newSize, fresnelNumbers, kernelType));
+        } else {
+            for (const auto &fNumber: fresnelNumbers) {
+                F2DArray singleFresnel {fNumber};
+                propagators.push_back(std::make_shared<Propagator>(newSize, singleFresnel, kernelType));
+            }
+        }
+        
+        PS = new PAmplitudeCons(minAmplitude, maxAmplitude);
+    }
+
+    FArray Reconstructor::reconsBatch(const FArray &holograms)
+    {
+        cudaMemcpy(d_holograms, holograms.data(), holograms.size() * sizeof(float), cudaMemcpyHostToDevice);
+        FArray result(batchSize * imSize[0] * imSize[1]);
+
+        for (int i = 0; i < batchSize; i++) {
+            // Optional padding operations on holograms
+            if (!padSize.empty()) {
+                for (int j = 0; j < numImages; j++) {
+                    CUDAUtils::padMatrix(d_holograms + i * numImages * imSize[0] * imSize[1] + j * imSize[0] * imSize[1], 
+                                         d_paddedHolograms + j * newSize[0] * newSize[1], imSize[0], imSize[1], padSize[0],
+                                         padSize[1], padType, 0.0f, streams[j]);
+                }
+
+                for (int j = 0; j < numImages; j++) {
+                    cudaStreamSynchronize(streams[j]);
+                }
+
+                d_temp = d_paddedHolograms;
+            } else {
+                d_temp = d_holograms + i * numImages * imSize[0] * imSize[1];
+            }
+
+            int blockSize = 1024;
+            int numBlocks = (newSize[0] * newSize[1] * numImages + blockSize - 1) / blockSize;
+            sqrtAmplitude<<<numBlocks, blockSize>>>(d_temp, newSize[0] * newSize[1] * numImages);
+
+            // Construct projector on measured holograms
+            Projector *PM = new PMagnitudeCons(d_temp, numImages, newSize, propagators, projectionType);
+
+            numBlocks = (newSize[0] * newSize[1] + blockSize - 1) / blockSize;
+            initializeData<<<numBlocks, blockSize>>>(complexWave, make_cuFloatComplex(1.0f, 0.0f), newSize[0] * newSize[1]);
+            WaveField waveField(newSize[0], newSize[1], complexWave);
+
+            ProjectionSolver projectionSolver(PM, PS, waveField, algorithm, algoParameters);
+            projectionSolver.execute(iteration).reconsPsi.getComplexWave(complexWave);
+
+            if (!padSize.empty()) {
+                CUDAUtils::cropMatrix(complexWave, croppedComplexWave, newSize[0], newSize[1], padSize[0], padSize[1], padSize[0], padSize[1]);
+            } else {
+                croppedComplexWave = complexWave;
+            }
+
+            WaveField reconsPsi(imSize[0], imSize[1], croppedComplexWave);
+            reconsPsi.getPhase(d_phase);
+            cudaMemcpy(result.data() + i * imSize[0] * imSize[1], d_phase, imSize[0] * imSize[1] * sizeof(float), cudaMemcpyDeviceToHost);
+
+            delete PM;
+        }
+
+        return result;
+    }
+    
+    Reconstructor::~Reconstructor()
+    {
+        cudaFree(d_holograms); cudaFree(d_phase);
+        cudaFree(complexWave); cudaFree(croppedComplexWave);
+
+        if (!padSize.empty()) {
+            cudaFree(d_paddedHolograms);
+            for (int i = 0; i < numImages; i++) {
+                cudaStreamDestroy(streams[i]);
+            }
+            delete[] streams;
+        }
+
+        delete PS;
+    }
 }

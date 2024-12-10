@@ -15,6 +15,40 @@ namespace PhaseRetrieval
                           CUDAPropKernel::Type kernelType = CUDAPropKernel::Fourier, CUDAUtils::PaddingType padType = CUDAUtils::PaddingType::Replicate, bool calcError = false);
     FArray reconstruct_ctf(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelnumbers, float lowFreqLim = 1e-3f, float highFreqLim = 1e-1f,
                           float betaDeltaRatio = 0.0f, const IntArray &padSize = IntArray(), CUDAUtils::PaddingType padType = CUDAUtils::PaddingType::Replicate);
+
+    class Reconstructor
+    {
+        private:
+            int batchSize;
+            int numImages;
+            IntArray imSize;
+            IntArray newSize;
+            int iteration;
+            std::vector<PropagatorPtr> propagators;
+            ProjectionSolver::Algorithm algorithm;
+            FArray algoParameters;
+            
+            IntArray padSize;
+            CUDAUtils::PaddingType padType;
+            Projector *PS;
+            PMagnitudeCons::Type projectionType;
+
+            float *d_holograms;
+            float *d_paddedHolograms;
+            float *d_temp;
+            float *d_phase;
+            cuFloatComplex *complexWave;
+            cuFloatComplex *croppedComplexWave;
+            cudaStream_t *streams;
+
+        public:
+            Reconstructor(int batchsize, int images, const IntArray &imsize, const F2DArray &fresnelNumbers, int iter, ProjectionSolver::Algorithm algo,
+                          const FArray &algoParams, const IntArray &padsize, float minAmplitude, float maxAmplitude, PMagnitudeCons::Type projType, 
+                          CUDAPropKernel::Type kernelType, CUDAUtils::PaddingType padtype);
+            FArray reconsBatch(const FArray &holograms);
+            ~Reconstructor();
+    };
+    
 }
 
 #endif

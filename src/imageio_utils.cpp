@@ -295,6 +295,28 @@ void ImageUtils::displayPhase(FArray &phase, int rows, int cols, const std::stri
     
 // }
 
+bool IOUtils::readDataDims(const std::string &filename, const std::string &datasetName, std::vector<hsize_t> &dims)
+{
+    try {
+        // 打开H5文件和数据集
+        H5::H5File file(filename, H5F_ACC_RDONLY);
+        H5::DataSet dataset = file.openDataSet(datasetName);
+
+        // 获取数据空间和维度
+        H5::DataSpace dataspace = dataset.getSpace();
+        int rank = dataspace.getSimpleExtentNdims();
+        
+        // 调整dims向量大小并获取维度信息
+        dims.resize(rank);
+        dataspace.getSimpleExtentDims(dims.data(), nullptr);
+
+        return true;
+    } catch(H5::Exception &error) {
+        std::cerr << "Error reading dataset dimensions: " << error.getDetailMsg() << std::endl;
+        return false;
+    }
+}
+
 bool IOUtils::readProcessedGrams(const std::string &filename, const std::string &datasetName, FArray &holograms, std::vector<hsize_t> &dims)
 {       
     try {
@@ -396,3 +418,71 @@ bool IOUtils::savePhasegrams(const std::string &filename, const std::string &dat
 //         return false;
 //     }
 // }
+
+bool IOUtils::read4DimData(const std::string &filename, const std::string &datasetName, FArray &data, hsize_t offset, hsize_t count)
+{
+    try {
+        // 打开HDF5文件和数据集
+        H5::H5File file(filename, H5F_ACC_RDONLY);
+        H5::DataSet dataset = file.openDataSet(datasetName);
+        
+        // 获取数据空间
+        H5::DataSpace dataspace = dataset.getSpace();
+        hsize_t dims[4];
+        dataspace.getSimpleExtentDims(dims, nullptr);
+        
+        // 设置读取区域
+        hsize_t offset_[4] = {offset, 0, 0, 0};
+        hsize_t count_[4] = {count, dims[1], dims[2], dims[3]};
+        dataspace.selectHyperslab(H5S_SELECT_SET, count_, offset_);
+        
+        H5::DataSpace memspace(4, count_);        
+        // 调整数据数组大小并读取数据
+        data.resize(count_[0] * count_[1] * count_[2] * count_[3]);
+        dataset.read(data.data(), H5::PredType::NATIVE_FLOAT, memspace, dataspace);
+        
+        return true;
+    } catch(H5::Exception &error) {
+        std::cerr << "Error reading dataset: " << error.getDetailMsg() << std::endl;
+        return false;
+    }
+}
+
+bool IOUtils::write3DimData(const std::string &filename, const std::string &datasetName, const FArray &data, 
+                            const std::vector<hsize_t> &dims, hsize_t offset)
+{
+    try {
+        // 尝试打开文件，如果不存在则创建
+        H5::H5File file;
+        if (offset == 0) {
+            file = H5::H5File(filename, H5F_ACC_TRUNC);
+        } else {
+            file.openFile(filename, H5F_ACC_RDWR);
+        }
+        
+        H5::DataSet dataset;
+        if (offset == 0) {
+            // 如果数据集不存在，创建新的数据集
+            H5::DataSpace dataspace(3, dims.data());
+            dataset = file.createDataSet(datasetName, H5::PredType::NATIVE_FLOAT, dataspace);
+        } else {
+            // 尝试打开已存在的数据集
+            dataset = file.openDataSet(datasetName);
+        }
+        
+        // 设置写入区域，一次写入一批数据
+        hsize_t offset_[3] = {offset, 0, 0};
+        hsize_t count_[3] = {data.size() / (dims[1] * dims[2]), dims[1], dims[2]};
+        
+        H5::DataSpace dataspace = dataset.getSpace();
+        dataspace.selectHyperslab(H5S_SELECT_SET, count_, offset_);
+        
+        H5::DataSpace memspace(3, count_);        
+        dataset.write(data.data(), H5::PredType::NATIVE_FLOAT, memspace, dataspace);
+        
+        return true;
+    } catch(H5::Exception &error) {
+        std::cerr << "Error writing dataset: " << error.getDetailMsg() << std::endl;
+        return false;
+    }
+}

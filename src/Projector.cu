@@ -63,9 +63,9 @@ PAmplitudeCons::~PAmplitudeCons()
 
 int PMagnitudeCons::currentIteration = 0;
 
-PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const IntArray &imsize, const F2DArray &fresnelnumbers,
-                       Type projectionType, CUDAPropKernel::Type kernelType, bool calcError): measurements(measuredGrams), numImages(numimages), 
-                       imSize(imsize), fresnelNumbers(fresnelnumbers), type(projectionType), calculateError(calcError)
+PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const IntArray &imsize, const std::vector<PropagatorPtr> &props,
+                       Type projectionType, bool calcError): measurements(measuredGrams), numImages(numimages), imSize(imsize), propagators(props), 
+                       type(projectionType), calculateError(calcError)
 {   
     // Initialize fresnel propagator(s)
     // std::cout << "Choosing kernel type: ";
@@ -86,13 +86,8 @@ PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const 
 
     if (type == Averaged) {
         batchSize = numImages;
-        propagators.push_back(std::make_unique<Propagator>(imSize, fresnelNumbers, kernelType));
     } else if (type == Sequential || type == Cyclic) {
         batchSize = 1;
-        for (const auto &fNumber: fresnelNumbers) {
-            F2DArray singleFresnel {fNumber};
-            propagators.push_back(std::make_unique<Propagator>(imSize, singleFresnel, kernelType));
-        }
     } else {
         throw std::invalid_argument("Invalid projection computing method!");
     }

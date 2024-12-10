@@ -21,5 +21,7 @@ class Propagator
         void backPropagate(cuFloatComplex *propagatedWave, cuFloatComplex *complexWave);
         ~Propagator();
 };
-                                                                                                                                               
+
+typedef std::shared_ptr<Propagator> PropagatorPtr;
+                                                                                                                                             
 #endif

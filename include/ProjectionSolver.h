@@ -54,7 +54,7 @@ class ProjectionSolver
         FArray parameters;
 
     public:
-        ProjectionSolver(Projector *PM, Projector *PS, const WaveField &initialPsi, Algorithm algo, const FArray &algoParameters, bool calError);
+        ProjectionSolver(Projector *PM, Projector *PS, const WaveField &initialPsi, Algorithm algo, const FArray &algoParameters, bool calError = false);
         IterationResult execute(int iterations);
         ~ProjectionSolver();
 };

@@ -49,7 +49,6 @@ class PMagnitudeCons: public Projector
     public:
         // Represents different methods of calculating projections
         enum Type {Averaged, Sequential, Cyclic};
-        typedef std::unique_ptr<Propagator> PropagatorPtr;
         typedef std::function<void(PMagnitudeCons*)> Method;
         
     private:
@@ -77,8 +76,8 @@ class PMagnitudeCons: public Projector
         void projCyclic();
 
     public:
-        PMagnitudeCons(const float *measuredGrams, int numimages, const IntArray &imsize, const F2DArray &fresnelnumbers,
-                       Type projectionType, CUDAPropKernel::Type kernelType, bool calcError);
+        PMagnitudeCons(const float *measuredGrams, int numimages, const IntArray &imsize, const std::vector<PropagatorPtr> &props,
+                       Type projectionType, bool calcError = false);
         virtual Projection project(const WaveField& waveField) override;
         ~PMagnitudeCons();
 };

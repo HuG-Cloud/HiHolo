@@ -15,6 +15,18 @@ int main(int argc, char* argv[])
            .help("input hdf5 file and dataset")
            .required().nargs(2);
 
+    program.add_argument("--output_files", "-O")
+           .help("output hdf5 file and dataset")
+           .required().nargs(2);
+
+    program.add_argument("--total_angles", "-A")
+           .help("total number of angles used for reconstruction")
+           .required().scan<'i', int>();
+    
+    program.add_argument("--batch_size", "-b")
+           .help("batch size of angles processed at a time")
+           .required().scan<'i', int>();
+
     program.add_argument("--fresnel_numbers", "-f")
            .help("list of fresnel numbers corresponding to holograms")
            .required().nargs(argparse::nargs_pattern::at_least_one).scan<'g', float>();
@@ -22,10 +34,6 @@ int main(int argc, char* argv[])
     program.add_argument("--iterations", "-i")
            .help("the number of iterations")
            .required().scan<'i', int>().default_value(200);
-
-    program.add_argument("--guess_phase_files", "-g")
-           .help("hdf5 file and dataset of initial guess phase")
-           .nargs(2);
 
     program.add_argument("--algorithm", "-a")
            .help("phase retrieval algorithm [0: ap, 1: raar, 2: hio, 3: drap]")
@@ -51,10 +59,6 @@ int main(int argc, char* argv[])
     program.add_argument("--kernel_method", "-m")
            .help("propagation kernel method [0: fourier, 1: chirp, 2: chirplimited]")
            .required().default_value(0).scan<'i', int>();
-    
-    program.add_argument("--error_calculation", "-e")
-           .help("whether to calculate iteration error")
-           .default_value(false).implicit_value(true);
 
     program.add_argument("--padding_type", "-p")
            .help("type of padding matrix around [0: constant, 1: replicate, 2: fadeout]")
@@ -68,19 +72,22 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    // Read holograms and image size from user inputs
-    FArray holograms;
+    // Read dimensions of holograms
     std::vector<hsize_t> dims;
     std::vector<std::string> inputs = program.get<std::vector<std::string>>("-I");
-    IOUtils::readProcessedGrams(inputs[0], inputs[1], holograms, dims);
-    if (holograms.empty() || dims.empty() || dims.size() != 3) {
-       throw std::runtime_error("Invalid holograms or dimensions!");
+    IOUtils::readDataDims(inputs[0], inputs[1], dims);
+    if (dims.empty() || dims.size() != 4) {
+        throw std::runtime_error("Invalid holograms or dimensions!");
     }
-    
-    int numHolograms = static_cast<int>(dims[0]);
-    int rows = static_cast<int>(dims[1]);
-    int cols = static_cast<int>(dims[2]);
+
+    int totalAngles = static_cast<int>(dims[0]);
+    int numHolograms = static_cast<int>(dims[1]);
+    int rows = static_cast<int>(dims[2]);
+    int cols = static_cast<int>(dims[3]);
     IntArray imSize {rows, cols};
+
+    int batchSize = program.get<int>("-b");
+    FArray holograms(batchSize * numHolograms * rows * cols);
 
     auto fresnel_input = program.get<FArray>("-f");
     F2DArray fresnelNumbers;
@@ -89,14 +96,6 @@ int main(int argc, char* argv[])
     }
 
     auto iterations = program.get<int>("-i");
-
-    // Read initial phase and image size from user inputs
-    FArray initialPhase;
-    if (program.is_used("-g")) {
-       std::vector<std::string> input_phase = program.get<std::vector<std::string>>("-g");
-       IOUtils::readPhasegrams(input_phase[0], input_phase[1], initialPhase, dims);
-    }
-
     auto algorithm = static_cast<ProjectionSolver::Algorithm>(program.get<int>("-a"));
 
     // Read algorithm parameters
@@ -125,20 +124,26 @@ int main(int argc, char* argv[])
 
     auto projectionType = static_cast<PMagnitudeCons::Type>(program.get<int>("-t"));
     auto kernelMethod = static_cast<CUDAPropKernel::Type>(program.get<int>("-m"));
-    bool calcError = program.get<bool>("-e") ? true : false;
+
+    std::vector<std::string> outputs = program.get<std::vector<std::string>>("-O");
+    std::vector<hsize_t> outputDims = {dims[0], dims[2], dims[3]};
+    
+    auto reconstructor = PhaseRetrieval::Reconstructor(batchSize, numHolograms, imSize, fresnelNumbers, iterations, algorithm, parameters,
+                                                       padSize, ampLimits[0], ampLimits[1], projectionType, kernelMethod, padType);
 
     auto start = std::chrono::high_resolution_clock::now();
-    
-    F2DArray result = PhaseRetrieval::reconstruct_iter(holograms, numHolograms, imSize, fresnelNumbers, iterations, initialPhase, algorithm,
-                                     parameters, padSize, ampLimits[0], ampLimits[1], projectionType, kernelMethod, padType, calcError);
-        
+
+    for (int i = 0; i < totalAngles / batchSize; i++) {
+       std::cout << "Processing batch " << i << std::endl;
+       IOUtils::read4DimData(inputs[0], inputs[1], holograms, i * batchSize, batchSize);
+       auto result = reconstructor.reconsBatch(holograms);
+       IOUtils::write3DimData(outputs[0], outputs[1], result, outputDims, i * batchSize);
+    }
+
     auto end = std::chrono::high_resolution_clock::now();
+    std::cout << "Finished phase retrieval for " << totalAngles << " angles!" << std::endl;
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
-
-    // Display the 2 results and save to HDF5 file
-    // OUtils::savePhasegrams("/home/hug/Downloads/HoloTomo_Data/reconsfile.h5", "phasedata", result[0], imSize[0], imSize[1]);
-    ImageUtils::displayNDArray(result, imSize[0], imSize[1], std::vector<std::string>{"phase", "amplitude"});
 
     return 0;
 }
