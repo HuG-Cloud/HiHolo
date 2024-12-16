@@ -7,7 +7,7 @@
 
 int main(int argc, char* argv[])
 {
-    argparse::ArgumentParser program("holo_recons_iter");
+    argparse::ArgumentParser program("holo_recons_angles");
     program.set_usage_max_line_width(120);
 
     // Add arguments to ArgumentParser object
@@ -142,8 +142,8 @@ int main(int argc, char* argv[])
 
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "Finished phase retrieval for " << totalAngles << " angles!" << std::endl;
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
+    auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
+    std::cout << "Elapsed time: " << duration.count() << " seconds" << std::endl;
 
     return 0;
 }

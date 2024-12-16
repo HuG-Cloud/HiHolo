@@ -372,6 +372,7 @@ namespace PhaseRetrieval
             newSize[0] += 2 * padSize[0];
             newSize[1] += 2 * padSize[1];
             cudaMalloc((void**)&d_paddedHolograms, newSize[0] * newSize[1] * numImages * sizeof(float));
+            cudaMalloc((void**)&croppedComplexWave, imSize[0] * imSize[1] * sizeof(cuFloatComplex));
             streams = new cudaStream_t[numImages];
             for (int i = 0; i < numImages; i++) {
                 cudaStreamCreate(&streams[i]);
@@ -380,7 +381,6 @@ namespace PhaseRetrieval
 
         cudaMalloc((void**)&d_holograms, batchSize * numImages * imSize[0] * imSize[1] * sizeof(float));
         cudaMalloc((void**)&complexWave, newSize[0] * newSize[1] * sizeof(cuFloatComplex));
-        cudaMalloc((void**)&croppedComplexWave, imSize[0] * imSize[1] * sizeof(cuFloatComplex));
         cudaMalloc((void**)&d_phase, imSize[0] * imSize[1] * sizeof(float));
         
         // print iterative algorithm
@@ -390,7 +390,7 @@ namespace PhaseRetrieval
             case ProjectionSolver::RAAR: std::cout << "RAAR"; break;
             case ProjectionSolver::HIO: std::cout << "HIO"; break;
             case ProjectionSolver::DRAP: std::cout << "DRAP"; break;
-            default: std::cout << "Unknown"; break;
+            default: std::cout << "Unknown!"; break;
         }
         std::cout << std::endl;
 
@@ -461,11 +461,13 @@ namespace PhaseRetrieval
     
     Reconstructor::~Reconstructor()
     {
-        cudaFree(d_holograms); cudaFree(d_phase);
-        cudaFree(complexWave); cudaFree(croppedComplexWave);
+        cudaFree(d_holograms); 
+        cudaFree(d_phase);
+        cudaFree(complexWave);
 
         if (!padSize.empty()) {
             cudaFree(d_paddedHolograms);
+            cudaFree(croppedComplexWave);
             for (int i = 0; i < numImages; i++) {
                 cudaStreamDestroy(streams[i]);
             }

@@ -573,7 +573,6 @@ void CUDAUtils::padByReplicate(float* matrix, float* matrix_new, int rows, int c
     // Copy the original matrix to the center of the new matrix
     nppiCopyReplicateBorder_32f_C1R_Ctx(reinterpret_cast<const Npp32f*>(matrix), srcStep, srcSize, reinterpret_cast<Npp32f*>(matrix_new), dstStep, dstSize, padRows, padCols, streamCtx);
 }
-
 void CUDAUtils::padByFadeout(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, cudaStream_t stream)
 {
     // Calculate the mean of the original matrix as the padding value
@@ -587,8 +586,8 @@ void CUDAUtils::padByFadeout(float* matrix, float* matrix_new, int rows, int col
 
     // Allocate memory for row and column grids and generate mask components
     float *rowGrid, *colGrid;
-    cudaMalloc(&rowGrid, newRows * sizeof(float));
-    cudaMalloc(&colGrid, newCols * sizeof(float));
+    cudaMallocAsync(&rowGrid, newRows * sizeof(float), stream);
+    cudaMallocAsync(&colGrid, newCols * sizeof(float), stream);
 
     int blockSize = 1024;
     int numBlocks = (newRows + blockSize - 1) / blockSize;
@@ -599,7 +598,7 @@ void CUDAUtils::padByFadeout(float* matrix, float* matrix_new, int rows, int col
 
     // Generate and apply gradient mask
     float *matrix_mask;
-    cudaMalloc(&matrix_mask, newRows * newCols * sizeof(float));
+    cudaMallocAsync(&matrix_mask, newRows * newCols * sizeof(float), stream);
     dim3 blockSize2D(32, 32);
     dim3 numBlocks2D((newCols + blockSize2D.x - 1) / blockSize2D.x, 
                      (newRows + blockSize2D.y - 1) / blockSize2D.y);
@@ -611,17 +610,17 @@ void CUDAUtils::padByFadeout(float* matrix, float* matrix_new, int rows, int col
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         float* matrix_mask = static_cast<float*>(userData);
-        cudaFree(matrix_mask);
+        cudaFreeAsync(matrix_mask, stream);
     }, matrix_mask, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         float* rowGrid = static_cast<float*>(userData);
-        cudaFree(rowGrid);
+        cudaFreeAsync(rowGrid, stream);
     }, rowGrid, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         float* colGrid = static_cast<float*>(userData);
-        cudaFree(colGrid);
+        cudaFreeAsync(colGrid, stream);
     }, colGrid, 0);
 }
 
@@ -681,16 +680,16 @@ void CUDAPropKernel::genByFourier(cuFloatComplex* kernel, const IntArray &imSize
 {
     float *rowRange;
     float *colRange;
-    cudaMalloc(&rowRange, imSize[0] * sizeof(float));
-    cudaMalloc(&colRange, imSize[1] * sizeof(float));
+    cudaMallocAsync(&rowRange, imSize[0] * sizeof(float), stream);
+    cudaMallocAsync(&colRange, imSize[1] * sizeof(float), stream);
 
     FArray spacing(2, 1.0f);
     CUDAUtils::genFFTFreq(rowRange, colRange, imSize, spacing, stream);
 
     cuFloatComplex *rowFreq;
     cuFloatComplex *colFreq;
-    cudaMalloc(&rowFreq, imSize[0] * sizeof(cuFloatComplex));
-    cudaMalloc(&colFreq, imSize[1] * sizeof(cuFloatComplex));
+    cudaMallocAsync(&rowFreq, imSize[0] * sizeof(cuFloatComplex), stream);
+    cudaMallocAsync(&colFreq, imSize[1] * sizeof(cuFloatComplex), stream);
 
     // Generate row and column components
     int blockSize1D = 512;
@@ -709,22 +708,22 @@ void CUDAPropKernel::genByFourier(cuFloatComplex* kernel, const IntArray &imSize
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         float *rowRange = static_cast<float*>(userData);
-        cudaFree(rowRange);
+        cudaFreeAsync(rowRange, stream);
     }, rowRange, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         float *colRange = static_cast<float*>(userData);
-        cudaFree(colRange);
+        cudaFreeAsync(colRange, stream);
     }, colRange, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         cuFloatComplex *rowFreq = static_cast<cuFloatComplex*>(userData);
-        cudaFree(rowFreq);
+        cudaFreeAsync(rowFreq, stream);
     }, rowFreq, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         cuFloatComplex *colFreq = static_cast<cuFloatComplex*>(userData);
-        cudaFree(colFreq);
+        cudaFreeAsync(colFreq, stream);
     }, colFreq, 0);
 }
 
@@ -732,8 +731,8 @@ void CUDAPropKernel::genByChirp(cuFloatComplex* kernel, const IntArray &imSize, 
 {
     float *rowRange;
     float *colRange;
-    cudaMalloc(&rowRange, imSize[0] * sizeof(float));
-    cudaMalloc(&colRange, imSize[1] * sizeof(float));
+    cudaMallocAsync(&rowRange, imSize[0] * sizeof(float), stream);
+    cudaMallocAsync(&colRange, imSize[1] * sizeof(float), stream);
 
     FArray spacing {2.0f * M_PIf32 / imSize[0], 2.0f * M_PIf32 / imSize[1]};
     CUDAUtils::genFFTFreq(rowRange, colRange, imSize, spacing, stream);
@@ -744,8 +743,8 @@ void CUDAPropKernel::genByChirp(cuFloatComplex* kernel, const IntArray &imSize, 
 
     cuFloatComplex *rowFreq;
     cuFloatComplex *colFreq;
-    cudaMalloc(&rowFreq, imSize[0] * sizeof(cuFloatComplex));
-    cudaMalloc(&colFreq, imSize[1] * sizeof(cuFloatComplex));
+    cudaMallocAsync(&rowFreq, imSize[0] * sizeof(cuFloatComplex), stream);
+    cudaMallocAsync(&colFreq, imSize[1] * sizeof(cuFloatComplex), stream);
     
     // Generate row and column components
     int blockSize1D = 512;
@@ -772,22 +771,22 @@ void CUDAPropKernel::genByChirp(cuFloatComplex* kernel, const IntArray &imSize, 
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         float *rowRange = static_cast<float*>(userData);
-        cudaFree(rowRange);
+        cudaFreeAsync(rowRange, stream);
     }, rowRange, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         float *colRange = static_cast<float*>(userData);
-        cudaFree(colRange);
+        cudaFreeAsync(colRange, stream);
     }, colRange, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         cuFloatComplex *rowFreq = static_cast<cuFloatComplex*>(userData);
-        cudaFree(rowFreq);
+        cudaFreeAsync(rowFreq, stream);
     }, rowFreq, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         cuFloatComplex *colFreq = static_cast<cuFloatComplex*>(userData);
-        cudaFree(colFreq);
+        cudaFreeAsync(colFreq, stream);
     }, colFreq, 0);
 }
 
@@ -795,8 +794,8 @@ void CUDAPropKernel::genByChirpLimited(cuFloatComplex* kernel, const IntArray &i
 {
     float *rowRange;
     float *colRange;
-    cudaMalloc(&rowRange, imSize[0] * sizeof(float));
-    cudaMalloc(&colRange, imSize[1] * sizeof(float));
+    cudaMallocAsync(&rowRange, imSize[0] * sizeof(float), stream);
+    cudaMallocAsync(&colRange, imSize[1] * sizeof(float), stream);
 
     FArray spacing {2.0f * M_PIf32 / imSize[0], 2.0f * M_PIf32 / imSize[1]};
     CUDAUtils::genFFTFreq(rowRange, colRange, imSize, spacing, stream);
@@ -807,8 +806,8 @@ void CUDAPropKernel::genByChirpLimited(cuFloatComplex* kernel, const IntArray &i
 
     cuFloatComplex *rowFreq;
     cuFloatComplex *colFreq;
-    cudaMalloc(&rowFreq, imSize[0] * sizeof(cuFloatComplex));
-    cudaMalloc(&colFreq, imSize[1] * sizeof(cuFloatComplex));
+    cudaMallocAsync(&rowFreq, imSize[0] * sizeof(cuFloatComplex), stream);
+    cudaMallocAsync(&colFreq, imSize[1] * sizeof(cuFloatComplex), stream);
 
     int blockSize1D = 512;
     int rowBlocks = (imSize[0] + blockSize1D - 1) / blockSize1D;
@@ -828,7 +827,7 @@ void CUDAPropKernel::genByChirpLimited(cuFloatComplex* kernel, const IntArray &i
     multiplyObliFactor_1<<<colBlocks, blockSize1D, 0, stream>>>(colRange, imSize[1], fresnelNumber[1]);
     
     float *matrix;
-    cudaMalloc(&matrix, imSize[0] * imSize[1] * sizeof(float));
+    cudaMallocAsync(&matrix, imSize[0] * imSize[1] * sizeof(float), stream);
     sharedMemSize = (blockSize2D.x + blockSize2D.y) * sizeof(float);
     multiplyObliFactor_2<<<numBlocks2D, blockSize2D, sharedMemSize, stream>>>(matrix, rowRange, colRange, imSize[0], imSize[1]);
     
@@ -842,27 +841,27 @@ void CUDAPropKernel::genByChirpLimited(cuFloatComplex* kernel, const IntArray &i
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         float *matrix = static_cast<float*>(userData);
-        cudaFree(matrix);
+        cudaFreeAsync(matrix, stream);
     }, matrix, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         float *rowRange = static_cast<float*>(userData);
-        cudaFree(rowRange);
+        cudaFreeAsync(rowRange, stream);
     }, rowRange, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         float *colRange = static_cast<float*>(userData);
-        cudaFree(colRange);
+        cudaFreeAsync(colRange, stream);
     }, colRange, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         cuFloatComplex *rowFreq = static_cast<cuFloatComplex*>(userData);
-        cudaFree(rowFreq);
+        cudaFreeAsync(rowFreq, stream);
     }, rowFreq, 0);
 
     cudaStreamAddCallback(stream, [](cudaStream_t stream, cudaError_t status, void* userData) {
         cuFloatComplex *colFreq = static_cast<cuFloatComplex*>(userData);
-        cudaFree(colFreq);
+        cudaFreeAsync(colFreq, stream);
     }, colFreq, 0);
 }
 
