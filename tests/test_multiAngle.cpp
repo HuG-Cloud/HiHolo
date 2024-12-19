@@ -37,9 +37,7 @@ int main(int argc, char* argv[]) {
         H5::DataSpace outSpace(4, outDims);
         
         // Create output dataset
-        H5::DataSet outDataset = outFile.createDataSet(argv[4], 
-                                                      H5::PredType::NATIVE_FLOAT,
-                                                      outSpace);
+        H5::DataSet outDataset = outFile.createDataSet(argv[4], H5::PredType::NATIVE_FLOAT, outSpace);
 
         // Allocate output data memory
         float* outData = new float[numAngles * dims[0] * dims[1] * dims[2]];

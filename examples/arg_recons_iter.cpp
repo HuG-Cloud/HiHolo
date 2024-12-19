@@ -32,8 +32,8 @@ int main(int argc, char* argv[])
            .required().default_value(0).scan<'i', int>();
 
     program.add_argument("--algorithm_parameters", "-P")
-           .help("parameters corresponding to different algorithm [default for hio and drap: 0.7] \
-                  [default for raar: 0.75, 0.99, 20]")
+           .help("parameters corresponding to different algorithm [default for hio and drap: 0.7]\n"
+                 "default for raar: 0.75, 0.99, 20")
            .nargs(1, 3).scan<'g', float>();
 
     program.add_argument("--padding_size", "-s")
