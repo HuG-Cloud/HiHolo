@@ -20,22 +20,6 @@ FArray MathUtils::genEquidisRange(float start, float end, int n)
     return range;
 }
 
-float MathUtils::complexL2Norm(const ComArray &vec1, const ComArray &vec2)
-{
-    if (vec1.size() != vec2.size())
-    {
-        throw std::invalid_argument("Vectors must be of the same length");
-    }
-    
-    float sum = 0.0f;
-    for (size_t i = 0; i < vec1.size(); i++)
-    {   
-        sum += std::norm(vec1[i] - vec2[i]);
-    }
-
-    return std::sqrt(sum);
-}
-
 std::complex<float> MathUtils::getInitCoeff(const FArray &vec)
 {
     ComArray tempFreq(vec.size());

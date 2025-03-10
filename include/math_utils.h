@@ -39,9 +39,6 @@ namespace MathUtils
        and discard data points that cannot fully compute the window */
     template<class T>
     FArray movmean(const std::vector<T>& data, int window_size);
-
-    // Find the L2 norm of two complex vectors
-    float complexL2Norm(const ComArray &vec1, const ComArray &vec2);
 }
 
 template<class T>

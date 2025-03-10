@@ -172,7 +172,7 @@ itk::simple::Transform ImageUtils::registerImage(const itk::simple::Image &fixed
         
         // 设置配准器参数
         registration.SetMetricAsCorrelation();
-        registration.SetOptimizerAsGradientDescent(1.0, 100, 1e-6, 10, registration.EachIteration);
+        registration.SetOptimizerAsGradientDescent(1, 100, 1e-3, 15, registration.EachIteration);
         registration.SetOptimizerScalesFromPhysicalShift();
         
         registration.SetInitialTransform(itk::simple::TranslationTransform(fixedImage.GetDimension()));
@@ -181,11 +181,20 @@ itk::simple::Transform ImageUtils::registerImage(const itk::simple::Image &fixed
         // 执行配准
         itk::simple::Transform transform = registration.Execute(fixedImage, movingImage);
         std::vector<double> parameters = transform.GetParameters();
+        if (std::abs(parameters[0]) > 1) {
+            parameters[0] += parameters[0] > 0 ? 1 : -1;
+        }
+        if (std::abs(parameters[1]) > 1) {
+            parameters[1] += parameters[1] > 0 ? 1 : -1;
+        }
+
         std::vector<unsigned int> padBound = {static_cast<unsigned int>(std::round(std::abs(parameters[0]))),
                                               static_cast<unsigned int>(std::round(std::abs(parameters[1])))};
         movingImage = itk::simple::ZeroFluxNeumannPad(movingImage, padBound, padBound);
 
-        movingImage = itk::simple::Resample(movingImage, transform, itk::simple::sitkNearestNeighbor, 0.0, movingImage.GetPixelID());
+        transform.SetParameters(parameters);
+        movingImage = itk::simple::Resample(movingImage, transform, itk::simple::sitkNearestNeighbor,
+                                            0.0, movingImage.GetPixelID());
         IntArray index = {static_cast<int>(padBound[0]), static_cast<int>(padBound[1])};
         movingImage = itk::simple::Extract(movingImage, fixedImage.GetSize(), index);
 
