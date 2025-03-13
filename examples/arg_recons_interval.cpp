@@ -3,12 +3,12 @@
 #include <iostream>
 #include <thread>
 
-#include "../include/holo_recons.h"
-#include "../include/imageio_utils.h"
+#include "holo_recons.h"
+#include "imageio_utils.h"
 
 int main(int argc, char* argv[])
 {
-    argparse::ArgumentParser program("holo_recons_iter");
+    argparse::ArgumentParser program("holo_recons_interval");
     program.set_usage_max_line_width(120);
 
     // Add arguments to ArgumentParser object

@@ -1,10 +1,8 @@
 #include <argparse/argparse.hpp>
 #include <chrono>
 #include <iostream>
-#include <SimpleITK.h>
 
-#include "../include/holo_recons.h"
-#include "../include/imageio_utils.h"
+#include "imageio_utils.h"
 
 int main(int argc, char* argv[])
 {

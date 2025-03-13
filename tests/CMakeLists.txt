@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(holo_regist_test LANGUAGES CXX CUDA)
+project(distance_calibr_test LANGUAGES CXX CUDA)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # 查找必要的包
 find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui imgcodecs)
 find_package(CUDA REQUIRED)
+find_package(GSL REQUIRED)
 find_package(HDF5 REQUIRED COMPONENTS CXX)
 
 # SimpleITK 和 ITK 配置
@@ -20,13 +21,14 @@ include_directories(
     ${OpenCV_INCLUDE_DIRS}
     ${CUDA_INCLUDE_DIRS}
     ${HDF5_INCLUDE_DIRS}
+    ${GSL_INCLUDE_DIRS}
     /home/hug/workspace/software/argparse/include
     ../include
 )
 
 # 定义源文件
 set(CPP_SRCS
-    test_sitk.cpp
+    test_calibrate.cpp
     ../src/math_utils.cpp
     ../src/imageio_utils.cpp
     ../src/ProjectionSolver.cpp
@@ -53,4 +55,5 @@ target_link_libraries(${PROJECT_NAME}
     ${HDF5_CXX_LIBRARIES}
     ${HDF5_LIBRARIES}
     ${SimpleITK_LIBRARIES}
+    ${GSL_LIBRARIES}
 )

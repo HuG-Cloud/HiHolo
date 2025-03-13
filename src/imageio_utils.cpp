@@ -205,6 +205,59 @@ itk::simple::Transform ImageUtils::registerImage(const itk::simple::Image &fixed
     }
 }
 
+DArray ImageUtils::calibrateDistance(const FArray &holograms, int numImages, int rows, int cols, double length,
+                                     double pixelSize, const DArray &nz, double stepSize)
+{
+    // Convert holograms to cv::Mat
+    std::vector<cv::Mat> holoMats(numImages, cv::Mat(rows, cols, CV_32F));
+    for (int i = 0; i < numImages; i++) {
+        memcpy(holoMats[i].data, holograms.data() + i * rows * cols, rows * cols * sizeof(float));
+    }
+
+    // Compute pixels and magnification
+    DArray npixels(numImages), magnitudes(numImages);
+    for (int i = 0; i < numImages; i++) {
+        npixels[i] = computePixels(holoMats[i]);
+        magnitudes[i] = 1.0 / (npixels[i] * pixelSize / length);
+    }
+
+    // Fit the 1/M and nz to a linear function
+    double a, b;
+    double cov[4];
+    gsl_fit_linear(nz.data(), 1, magnitudes.data(), 1, numImages, &a, &b, cov, cov + 1, cov + 2, cov + 3);
+
+    // Compute the distance
+    DArray distances(2);
+    distances[0] = a * stepSize / b;
+    distances[1] = stepSize / b;
+
+    return distances;
+}
+
+double ImageUtils::computePixels(const cv::Mat &image)
+{
+    cv::Mat planes[] = {image, cv::Mat::zeros(image.size(), image.type())};
+    cv::Mat complexImg;
+    cv::merge(planes, 2, complexImg);
+    cv::dft(complexImg, complexImg);
+
+    // Compute PSD
+    cv::split(complexImg, planes);
+    cv::Mat psd;
+    cv::magnitude(planes[0], planes[1], psd);
+    cv::pow(psd, 2, psd);
+
+    // Sum along the column direction
+    cv::Mat profile;
+    cv::reduce(psd, profile, 0, cv::REDUCE_SUM, CV_32F);
+
+    // Compute the number of pixels
+    double maxVal;
+    cv::minMaxLoc(profile, nullptr, &maxVal);
+
+    return 1.0 / maxVal;
+}
+
 void ImageUtils::displayNDArray(F2DArray &images, int rows, int cols, const std::vector<std::string> &imgName)
 {   
     std::vector<cv::Mat> mats(images.size(), cv::Mat(rows, cols, CV_32F));

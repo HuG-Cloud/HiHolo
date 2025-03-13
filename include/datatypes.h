@@ -11,6 +11,9 @@ typedef std::vector<int> IntArray;
 typedef std::vector<float> FArray;
 typedef std::vector<FArray> F2DArray;
 
+typedef std::vector<double> DArray;
+typedef std::vector<DArray> D2DArray;
+
 typedef std::vector<std::complex<float>> ComArray;
 typedef std::vector<ComArray> Com2DArray; 
 
