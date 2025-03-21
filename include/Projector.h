@@ -50,7 +50,48 @@ class PAmplitudeCons: public Projector
         PAmplitudeCons(float minAmp, float maxAmp): minAmplitude(minAmp), maxAmplitude(maxAmp) {}
         virtual Projection project(const WaveField& psi) override;
         virtual ProbeProjection project(const WaveField& psi, const WaveField &probeField) override;
-        ~PAmplitudeCons();
+        ~PAmplitudeCons() = default;
+};
+
+class PPhaseCons: public Projector
+{
+    private:
+        /* Phase max:inf, min:-inf */
+        float maxPhase;
+        float minPhase;
+        float *targetPhase;
+    public:
+        PPhaseCons(float minPha, float maxPha): minPhase(minPha), maxPhase(maxPha) {}
+        virtual Projection project(const WaveField& psi) override;
+        virtual ProbeProjection project(const WaveField& psi, const WaveField &probeField) override;
+        ~PPhaseCons() = default;
+};
+
+class PSupportCons: public Projector
+{
+    private:
+        const float *support;
+        cuFloatComplex *complexWave;
+        float outsideValue;
+    public:
+        PSupportCons(const float *supp, int size, float outValue);
+        virtual Projection project(const WaveField& psi) override;
+        virtual ProbeProjection project(const WaveField& psi, const WaveField &probeField) override;
+        ~PSupportCons();
+};
+
+class MultiObjectCons: public Projector
+{
+    private:
+        Projector *pPhaCons;
+        Projector *pAmpCons;
+        Projector *pSuppCons;
+
+    public:
+        MultiObjectCons(Projector *pPha, Projector *pAmp, Projector *pSupp): pPhaCons(pPha), pAmpCons(pAmp), pSuppCons(pSupp) {}
+        virtual Projection project(const WaveField& psi) override;
+        virtual ProbeProjection project(const WaveField& psi, const WaveField &probeField) override;
+        ~MultiObjectCons() = default;
 };
 
 class PMagnitudeCons: public Projector

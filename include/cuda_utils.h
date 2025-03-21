@@ -60,6 +60,8 @@ namespace CUDAUtils
 
     // Generate regularization weights for CTF phase retrieval in Fourier space
     void ctfRegWeights(float *regWeights, const IntArray &imSize, const FArray &fresnelNumber, float lowFreqLim, float highFreqLim);
+
+    float* padInputData(float* inputData, const IntArray& imSize, const IntArray& newSize, const IntArray& padSize, PaddingType padType, float padValue = 0.0f); 
 }
 
 // Normalize the inverse FFT result
@@ -98,6 +100,9 @@ __global__ void multiplyWaveField(cuFloatComplex *result, const cuFloatComplex *
 __global__ void reflectWaveField(cuFloatComplex *reflectedWave, const cuFloatComplex *waveField, int numel);
 
 __global__ void adjustAmplitude(float *amplitude, float maxAmplitude, float minAmplitude, int numel);
+__global__ void adjustPhase(float *phase, float maxPhase, float minPhase, int numel);
+__global__ void adjustComplexWave(cuFloatComplex *complexWave, const float *support, float outsideValue, int numel);
+
 __global__ void limitAmplitude(cuFloatComplex *complexWave, const float *amplitude, const float *targetAmplitude, int numel);
 __global__ void limitAmplitude(cuFloatComplex *complexWave, const float *targetAmplitude, int numel);
 __global__ void sqrtIntensity(float *amplitude, int numel);

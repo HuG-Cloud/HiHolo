@@ -93,9 +93,8 @@ IterationResult ProjectionSolver::execute(int iterations)
         currentIteration++;
     }
     
-    // std::cout << "The last Iteration: " << currentIteration << std::endl;
     psi = projMagnitude->project(psi).projection;
-    return {psi, residual};
+    return {psi, probe, residual};
 }
 
 /* Alternating Projection Algorithm */
@@ -105,7 +104,6 @@ void ProjectionSolver::updateStepAP()
     Projection objectResult = projObject->project(magnitudeResult.projection);
 
     setResidual(2, magnitudeResult.residual);
-    PMPsi = magnitudeResult.projection;
     psi = objectResult.projection;
 }
 
@@ -116,7 +114,6 @@ void ProjectionSolver::updateStepAPWP()
     Projection objectResult = projObject->project(magnitudeResult.projection);
 
     setResidual(2, magnitudeResult.residual);
-    PMPsi = magnitudeResult.projection;
     probe = magnitudeResult.probeProjection;
     psi = objectResult.projection;
 }
@@ -140,7 +137,6 @@ void ProjectionSolver::updateStepRAAR()
     Reflection objectResult = projObject->reflect(magnitudeResult.reflection);
 
     setResidual(2, magnitudeResult.residual);
-    PMPsi = magnitudeResult.projection;
     // update the final psi, xNew = (b/2) .* (xNew + x) + (1-b) .* xPM;
     // psi = (objectResult.reflection + psi) * (b / 2.0f) + (1.0f - b) * PMPsi;
     (psi + objectResult.reflection) * (b / 2.0f) + magnitudeResult.projection * (1.0f - b);
@@ -159,7 +155,6 @@ void ProjectionSolver::updateStepHIO()
     Reflection objectResult = projObject->reflect((1.0f + b) * magnitudeResult.projection - psi);
 
     setResidual(2, magnitudeResult.residual);
-    PMPsi = magnitudeResult.projection;
     // psi = (objectResult.reflection + psi + (1.0f - b) * PMPsi) * 0.5f;
     ((psi + objectResult.reflection) + magnitudeResult.projection * (1.0f - b)) * 0.5f;
 }
@@ -177,7 +172,6 @@ void ProjectionSolver::updateStepDRAP()
     Projection objectResult = projObject->project((1.0f + b) * magnitudeResult.projection - b * psi);
 
     setResidual(2, magnitudeResult.residual);
-    PMPsi = magnitudeResult.projection;
     psi = objectResult.projection - (magnitudeResult.projection - psi) * b;
 }
 

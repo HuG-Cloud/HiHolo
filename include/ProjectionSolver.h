@@ -10,6 +10,7 @@
 struct IterationResult
 {
     const WaveField &reconsPsi;
+    const WaveField &reconsProbe;
     const F2DArray &finalError;
 };
 

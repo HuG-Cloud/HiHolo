@@ -164,7 +164,7 @@ void ImageUtils::removeStripes(cv::Mat &image, int rangeRows, int rangeCols, int
 
 }
 
-itk::simple::Transform ImageUtils::registerImage(const itk::simple::Image &fixedImage, itk::simple::Image &movingImage)
+IntArray ImageUtils::registerImage(const itk::simple::Image &fixedImage, itk::simple::Image &movingImage)
 {
     try {
         // Create registration method for image alignment
@@ -183,7 +183,7 @@ itk::simple::Transform ImageUtils::registerImage(const itk::simple::Image &fixed
 
         // Execute registration and adjust transform parameters
         itk::simple::Transform transform = registration.Execute(fixedImage, movingImage);
-        std::vector<double> parameters = transform.GetParameters();
+        DArray parameters = transform.GetParameters();
         if (std::abs(parameters[0]) > 1) {
             parameters[0] += parameters[0] > 0 ? 1 : -1;
         }
@@ -203,15 +203,15 @@ itk::simple::Transform ImageUtils::registerImage(const itk::simple::Image &fixed
         IntArray index = {static_cast<int>(padBound[0]), static_cast<int>(padBound[1])};
         movingImage = itk::simple::Extract(movingImage, fixedImage.GetSize(), index);
 
-        return transform;
+        return {static_cast<int>(std::round(parameters[0])), static_cast<int>(std::round(parameters[1]))};
     } catch (const std::exception &e) {
         std::cerr << "Error registering image: " << e.what() << std::endl;
-        return itk::simple::Transform();
+        return IntArray();
     }
 }
 
-DArray ImageUtils::calibrateDistance(const FArray &holograms, int numImages, int rows, int cols, double length,
-                                     double pixelSize, const DArray &nz, double stepSize)
+D2DArray ImageUtils::calibrateDistance(const FArray &holograms, int numImages, int rows, int cols,
+                                       double length, double pixelSize, const DArray &nz, double stepSize)
 {
     // Convert holograms to cv::Mat
     std::vector<cv::Mat> holoMats(numImages, cv::Mat(rows, cols, CV_32F));
@@ -220,10 +220,10 @@ DArray ImageUtils::calibrateDistance(const FArray &holograms, int numImages, int
     }
 
     // Compute pixels and magnification
-    DArray npixels(numImages), magnitudes(numImages);
+    DArray maxPSD(numImages), magnitudes(numImages);
     for (int i = 0; i < numImages; i++) {
-        npixels[i] = computePixels(holoMats[i]);
-        magnitudes[i] = 1.0 / (npixels[i] * pixelSize / length);
+        maxPSD[i] = computePSD(holoMats[i]);
+        magnitudes[i] = 1.0 / ((1.0 / maxPSD[i]) * pixelSize / length);
     }
 
     // Fit the 1/M and nz to a linear function
@@ -231,15 +231,20 @@ DArray ImageUtils::calibrateDistance(const FArray &holograms, int numImages, int
     double cov[4];
     gsl_fit_linear(nz.data(), 1, magnitudes.data(), 1, numImages, &a, &b, cov, cov + 1, cov + 2, cov + 3);
 
-    // Compute the distance
-    DArray distances(2);
-    distances[0] = a * stepSize / b;
-    distances[1] = stepSize / b;
+    // Return the distances and the fitting parameters
+    D2DArray parameters(3);
+    parameters[0] = maxPSD;
+    parameters[1] = magnitudes;
 
-    return distances;
+    // Compute the distances
+    double z1 = a * stepSize / b;
+    double z2 = stepSize / b;
+    parameters[2] = {b, a, cov[3], z1, z2};
+
+    return parameters;
 }
 
-double ImageUtils::computePixels(const cv::Mat &image)
+double ImageUtils::computePSD(const cv::Mat &image)
 {
     // Split the image into real and imaginary parts
     cv::Mat planes[] = {image, cv::Mat::zeros(image.size(), image.type())};
@@ -261,7 +266,7 @@ double ImageUtils::computePixels(const cv::Mat &image)
     double maxVal;
     cv::minMaxLoc(profile, nullptr, &maxVal);
 
-    return 1.0 / maxVal;
+    return maxVal;
 }
 
 void ImageUtils::displayNDArray(F2DArray &images, int rows, int cols, const std::vector<std::string> &imgName)

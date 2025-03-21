@@ -33,7 +33,6 @@ Projection PAmplitudeCons::project(const WaveField& psi)
         throw std::invalid_argument("maxAmplitude can not be less than minAmplitude");
     }
 
-    // residual
     float residual = FloatInf;
 
     // without any amplitude constraints
@@ -57,6 +56,7 @@ Projection PAmplitudeCons::project(const WaveField& psi)
 
     WaveField updatedPsi(psi);
     updatedPsi.setByAmplitude(targetAmplitude);
+    cudaFree(targetAmplitude);
     return {updatedPsi, residual};
 }
 
@@ -65,17 +65,97 @@ ProbeProjection PAmplitudeCons::project(const WaveField& psi, const WaveField &p
     return {psi, probeField, FloatInf};
 }
 
-PAmplitudeCons::~PAmplitudeCons()
+Projection PPhaseCons::project(const WaveField& psi)
 {
-    if (targetAmplitude)
-        cudaFree(targetAmplitude);
+    if (maxPhase < minPhase) {
+        throw std::invalid_argument("maxPhase can not be less than minPhase");
+    }
+
+    float residual = FloatInf;
+
+    // without any phase constraints
+    if (maxPhase == FloatInf && minPhase == -FloatInf)
+        return {psi, residual};
+    
+    int rows = psi.getRows();
+    int cols = psi.getColumns();
+    cudaMalloc(&targetPhase, rows * cols * sizeof(float));
+
+    int blockSize = 1024;
+    int gridSize = (rows * cols + blockSize - 1) / blockSize;
+
+    // update phase according to max/min constraints
+    psi.getPhase(targetPhase);
+    adjustPhase<<<gridSize, blockSize>>>(targetPhase, maxPhase, minPhase, rows * cols);
+
+    WaveField updatedPsi(psi);
+    updatedPsi.setByPhase(targetPhase);
+    cudaFree(targetPhase);
+    return {updatedPsi, residual};
+}
+
+ProbeProjection PPhaseCons::project(const WaveField& psi, const WaveField &probeField)
+{
+    return {psi, probeField, FloatInf};
+}
+
+PSupportCons::PSupportCons(const float *supp, int size, float outValue):
+                           support(supp), outsideValue(outValue), complexWave(nullptr)
+{
+    if (support) {
+        cudaMalloc(&complexWave, sizeof(cuFloatComplex) * size);
+    }
+}
+
+Projection PSupportCons::project(const WaveField& psi)
+{
+    float residual = FloatInf;
+
+    if (!support)
+        return {psi, residual};
+    
+    int rows = psi.getRows();
+    int cols = psi.getColumns();
+    int blockSize = 1024;
+    int numBlocks = (rows * cols + blockSize - 1) / blockSize;
+
+    psi.getComplexWave(complexWave);
+    adjustComplexWave<<<numBlocks, blockSize>>>(complexWave, support, outsideValue, rows * cols);
+    
+    WaveField updatedPsi(rows, cols, complexWave);
+    return {updatedPsi, residual};
+}
+
+ProbeProjection PSupportCons::project(const WaveField& psi, const WaveField &probeField)
+{
+    return {psi, probeField, FloatInf};
+}
+
+PSupportCons::~PSupportCons()
+{
+    if (complexWave)
+        cudaFree(complexWave);
+}    
+
+Projection MultiObjectCons::project(const WaveField& psi)
+{
+    Projection phaConsResult = pPhaCons->project(psi);
+    Projection ampConsResult = pAmpCons->project(phaConsResult.projection);
+    Projection suppConsResult = pSuppCons->project(ampConsResult.projection);
+
+    return suppConsResult;
+}
+
+ProbeProjection MultiObjectCons::project(const WaveField& psi, const WaveField &probeField)
+{
+    return {psi, probeField, FloatInf};
 }
 
 int PMagnitudeCons::currentIteration = 0;
 
 PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const IntArray &imsize, const std::vector<PropagatorPtr> &props,
                        Type projectionType, bool calcError): measurements(measuredGrams), numImages(numimages), imSize(imsize), propagators(props), 
-                       type(projectionType), calculateError(calcError)
+                       type(projectionType), calculateError(calcError), p_measurements(nullptr)
 {   
     // Check projection type and set batch size
     if (type == Averaged) {
@@ -101,8 +181,8 @@ PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const 
 }
 
 PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, const float *p_measuredGrams, int numimages, const IntArray &imsize, 
-                               const std::vector<PropagatorPtr> &props, Type projectionType): measurements(measuredGrams),
-                               p_measurements(p_measuredGrams), numImages(numimages), imSize(imsize), propagators(props), type(projectionType)
+                               const std::vector<PropagatorPtr> &props, Type projectionType): measurements(measuredGrams), imSize(imsize), 
+                               p_measurements(p_measuredGrams), numImages(numimages), propagators(props), type(projectionType)
 {
     if (type != Averaged) {
         throw std::invalid_argument("Invalid projection computing method!");

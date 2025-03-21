@@ -26,7 +26,7 @@ int main()
     std::vector<itk::simple::Image> images(numImages);
     ImageUtils::convertVecToImgs(holograms.data(), images, rows, cols);
 
-    std::vector<std::vector<double>> translations = {{8, 8}, {8, 8}, {8, 8}};
+    std::vector<std::vector<double>> translations = {{0, 3}, {-3, 8}, {9, 8}};
     // 计算最大填充边界
     std::vector<unsigned int> maxPadBound = {0, 0};
     for (int i = 1; i < numImages; i++) {
@@ -53,12 +53,10 @@ int main()
     // 创建平移变换
     // std::vector<std::vector<double>> translations = {{5,0}, {0,8}, {6,8}};
     for (int i = 1; i < numImages; i++) {
-        
-        // 2. 设置平移变换
         // itk::simple::TranslationTransform transform(2);
         // transform.SetParameters(translations[i-1]);
-        itk::simple::Transform transform = ImageUtils::registerImage(images[0], images[i]);
-        std::cout << transform.GetParameters()[0] << " " << transform.GetParameters()[1] << std::endl;
+        IntArray transform = ImageUtils::registerImage(images[0], images[i]);
+        std::cout << transform[0] << " " << transform[1] << std::endl;
         // 3. 对填充后的图像进行重采样
         // paddedImage = itk::simple::Resample(paddedImage, transform, itk::simple::sitkNearestNeighbor, 0.0, paddedImage.GetPixelID());        
     }

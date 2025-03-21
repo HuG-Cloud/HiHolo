@@ -214,9 +214,10 @@ namespace PhaseRetrieval
     }
 
     F2DArray reconstruct_iter(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelNumbers, int iterations, 
-                              const FArray &initialPhase, ProjectionSolver::Algorithm algorithm, const FArray &algoParameters, const IntArray &padSize, 
-                              float minAmplitude, float maxAmplitude, PMagnitudeCons::Type projectionType, CUDAPropKernel::Type kernelType, 
-                              CUDAUtils::PaddingType padType, const FArray &holoProbes, const FArray &initProbePhase, bool calcError)
+                              const FArray &initialPhase, ProjectionSolver::Algorithm algorithm, const FArray &algoParameters, const IntArray &padSize,
+                              float minPhase, float maxPhase, float minAmplitude, float maxAmplitude, const FArray &support, float outSideValue, 
+                              PMagnitudeCons::Type projectionType, CUDAPropKernel::Type kernelType, CUDAUtils::PaddingType padType, const FArray &holoProbes, 
+                              const FArray &initProbePhase, bool calcError)
     {
         // Add GPU environment check
         int deviceCount;
@@ -224,11 +225,6 @@ namespace PhaseRetrieval
         if (error != cudaSuccess || deviceCount == 0) {
             throw std::runtime_error("No CUDA capable GPU device found!");
         }
-
-        cudaDeviceProp deviceProp;
-        cudaGetDeviceProperties(&deviceProp, 0);
-        std::cout << "Using GPU device: " << deviceProp.name << std::endl;
-        std::cout << "Compute capability: " << deviceProp.major << "." << deviceProp.minor << std::endl;
 
         if (fresnelNumbers.size() != numImages)
             throw std::invalid_argument("The number of images and fresnel numbers does not match!");
@@ -238,11 +234,19 @@ namespace PhaseRetrieval
         cudaMalloc((void**)&holograms_gpu, holograms.size() * sizeof(float));
         cudaMemcpy(holograms_gpu, holograms.data(), holograms.size() * sizeof(float), cudaMemcpyHostToDevice);
 
-        if (algorithm == ProjectionSolver::APWP) {
+        bool isAPWP = (algorithm == ProjectionSolver::APWP);
+
+        if (isAPWP) {
             if (holoProbes.size() != holograms.size())
                 throw std::invalid_argument("The number of probes and holograms does not match!");
             cudaMalloc((void**)&holoprobes_gpu, holoProbes.size() * sizeof(float));
             cudaMemcpy(holoprobes_gpu, holoProbes.data(), holoProbes.size() * sizeof(float), cudaMemcpyHostToDevice);
+        }
+
+        float *support_gpu = nullptr;
+        if (!support.empty()) {
+            cudaMalloc((void**)&support_gpu, support.size() * sizeof(float));
+            cudaMemcpy(support_gpu, support.data(), support.size() * sizeof(float), cudaMemcpyHostToDevice);
         }
 
         IntArray newSize(imSize);
@@ -263,11 +267,10 @@ namespace PhaseRetrieval
                 cudaStreamSynchronize(streams[i]);
             }
 
-            float *temp = holograms_gpu;
+            cudaFree(holograms_gpu);
             holograms_gpu = paddedHolograms_gpu;
-            cudaFree(temp);
 
-            if (algorithm == ProjectionSolver::APWP) {
+            if (isAPWP) {
                 float *paddedProbes_gpu;
                 cudaMalloc((void**)&paddedProbes_gpu, newSize[0] * newSize[1] * numImages * sizeof(float));
 
@@ -279,9 +282,8 @@ namespace PhaseRetrieval
                     cudaStreamSynchronize(streams[i]);
                 }
 
-                temp = holoprobes_gpu;
+                cudaFree(holoprobes_gpu);
                 holoprobes_gpu = paddedProbes_gpu;
-                cudaFree(temp);
             }
 
             for (int i = 0; i < numImages; i++) {
@@ -290,34 +292,12 @@ namespace PhaseRetrieval
             delete[] streams;
         }
 
-        // print iterative algorithm
-        std::cout << "Choosing algorithm: ";
-        switch (algorithm) {
-            case ProjectionSolver::AP: std::cout << "AP"; break;
-            case ProjectionSolver::RAAR: std::cout << "RAAR"; break;
-            case ProjectionSolver::HIO: std::cout << "HIO"; break;
-            case ProjectionSolver::DRAP: std::cout << "DRAP"; break;
-            case ProjectionSolver::APWP: std::cout << "AP with Probe"; break;
-            default: std::cout << "Unknown"; break;
-        }
-        std::cout << std::endl;
-
-        // print projection method
-        std::cout << "Choosing projection method: ";
-        switch (projectionType) {
-            case PMagnitudeCons::Averaged: std::cout << "Averaged"; break;
-            case PMagnitudeCons::Sequential: std::cout << "Sequential"; break;
-            case PMagnitudeCons::Cyclic: std::cout << "Cyclic"; break;
-            default: std::cout << "Unknown"; break;
-        }
-        std::cout << std::endl;
-
         // Construct projector on measured holograms
         int blockSize = 1024;
         int gridSize = (newSize[0] * newSize[1] * numImages + blockSize - 1) / blockSize;
         // divideFloatData<<<gridSize, blockSize>>>(holograms_gpu, holoprobes_gpu, newSize[0] * newSize[1] * numImages);
         sqrtIntensity<<<gridSize, blockSize>>>(holograms_gpu, newSize[0] * newSize[1] * numImages);
-        if (algorithm == ProjectionSolver::APWP) {
+        if (isAPWP) {
             sqrtIntensity<<<gridSize, blockSize>>>(holoprobes_gpu, newSize[0] * newSize[1] * numImages);
         }
 
@@ -332,14 +312,25 @@ namespace PhaseRetrieval
         }
 
         Projector *PM;
-        if (algorithm == ProjectionSolver::APWP) {
+        if (isAPWP) {
             PM = new PMagnitudeCons(holograms_gpu, holoprobes_gpu, numImages, newSize, propagators, projectionType);
         } else {
             PM = new PMagnitudeCons(holograms_gpu, numImages, newSize, propagators, projectionType, calcError);
         }
 
-        // Construct projector on amplitude constraint of object
-        Projector *PS = new PAmplitudeCons(minAmplitude, maxAmplitude);
+        // Construct projector on constraints of object plane
+        if (!support.empty()) {
+            float *paddedSupport_gpu = CUDAUtils::padInputData(support_gpu, imSize, newSize, padSize, padType);
+            if (paddedSupport_gpu != support_gpu) {
+                cudaFree(support_gpu);
+                support_gpu = paddedSupport_gpu;
+            }
+        }
+
+        Projector *pAmplitude = new PAmplitudeCons(minAmplitude, maxAmplitude);
+        Projector *pPhase = new PPhaseCons(minPhase, maxPhase);
+        Projector *pSupport = new PSupportCons(support_gpu, newSize[0] * newSize[1], outSideValue);
+        Projector *PS = new MultiObjectCons(pPhase, pAmplitude, pSupport);
 
         // Initialize wave field from the guess phase
         cuFloatComplex *complexWave, *probe;
@@ -358,19 +349,14 @@ namespace PhaseRetrieval
             cudaMalloc((void**)&initPhase_gpu, initialPhase.size() * sizeof(float));
             cudaMemcpy(initPhase_gpu, initialPhase.data(), initialPhase.size() * sizeof(float), cudaMemcpyHostToDevice);
 
-            // Optional padding operations on initial phase
-            if (!padSize.empty()) {
-                float *paddedInitPhase_gpu;
-                cudaMalloc((void**)&paddedInitPhase_gpu, newSize[0] * newSize[1] * sizeof(float));
-                CUDAUtils::padMatrix(initPhase_gpu, paddedInitPhase_gpu, imSize[0], imSize[1], padSize[0], padSize[1], padType);
-                
-                float *temp = initPhase_gpu;
-                initPhase_gpu = paddedInitPhase_gpu;
-                cudaFree(temp);
+            // Pad initial phase if needed
+            float *paddedInitPhase_gpu = CUDAUtils::padInputData(initPhase_gpu, imSize, newSize, padSize, padType);
+            if (paddedInitPhase_gpu != initPhase_gpu) {
+                cudaFree(initPhase_gpu);
             }
 
-            initByPhase<<<gridSize, blockSize>>>(complexWave, initPhase_gpu, newSize[0] * newSize[1]);
-            cudaFree(initPhase_gpu);
+            initByPhase<<<gridSize, blockSize>>>(complexWave, paddedInitPhase_gpu, newSize[0] * newSize[1]);
+            cudaFree(paddedInitPhase_gpu);
         } else {
             // Initialize wave field from the zero phase
             initializeData<<<gridSize, blockSize>>>(complexWave, make_cuFloatComplex(1.0f, 0.0f), newSize[0] * newSize[1]);
@@ -378,7 +364,7 @@ namespace PhaseRetrieval
         WaveField waveField(newSize[0], newSize[1], complexWave);
 
         // Initialize probe field from the guess phase
-        if (algorithm == ProjectionSolver::APWP) {
+        if (isAPWP) {
             cudaMalloc((void**)&probe, newSize[0] * newSize[1] * sizeof(cuFloatComplex));
             if (!initProbePhase.empty()) {
                 if (initProbePhase.size() != imSize[0] * imSize[1]) {
@@ -389,26 +375,21 @@ namespace PhaseRetrieval
                 cudaMalloc((void**)&initProbePhase_gpu, initProbePhase.size() * sizeof(float));
                 cudaMemcpy(initProbePhase_gpu, initProbePhase.data(), initProbePhase.size() * sizeof(float), cudaMemcpyHostToDevice);
 
-                // Optional padding operations on initial probe phase
-                if (!padSize.empty()) {
-                    float *paddedProbePhase_gpu;
-                    cudaMalloc((void**)&paddedProbePhase_gpu, newSize[0] * newSize[1] * sizeof(float));
-                    CUDAUtils::padMatrix(initProbePhase_gpu, paddedProbePhase_gpu, imSize[0], imSize[1], padSize[0], padSize[1], padType);
-
-                    float *temp = initProbePhase_gpu;
-                    initProbePhase_gpu = paddedProbePhase_gpu;
-                    cudaFree(temp);
+                // Pad probe phase if needed
+                float *paddedProbePhase_gpu = CUDAUtils::padInputData(initProbePhase_gpu, imSize, newSize, padSize, padType);
+                if (paddedProbePhase_gpu != initProbePhase_gpu) {
+                    cudaFree(initProbePhase_gpu);
                 }
 
-                initByPhase<<<gridSize, blockSize>>>(probe, initProbePhase_gpu, newSize[0] * newSize[1]);
-                cudaFree(initProbePhase_gpu);
+                initByPhase<<<gridSize, blockSize>>>(probe, paddedProbePhase_gpu, newSize[0] * newSize[1]);
+                cudaFree(paddedProbePhase_gpu);
             } else {
                 initializeData<<<gridSize, blockSize>>>(probe, make_cuFloatComplex(1.0f, 0.0f), newSize[0] * newSize[1]);
             }
         }
 
         ProjectionSolver *projectionSolver;
-        if (algorithm == ProjectionSolver::APWP) {
+        if (isAPWP) {
             WaveField probeField(newSize[0], newSize[1], probe);
             projectionSolver = new ProjectionSolver(PM, PS, waveField, probeField, calcError);
         } else {
@@ -416,36 +397,58 @@ namespace PhaseRetrieval
         }
         
         // Reconstruct wave field by iterative projection algorithm
-        projectionSolver->execute(iterations).reconsPsi.getComplexWave(complexWave);
+        auto iterResult = projectionSolver->execute(iterations);
+        iterResult.reconsPsi.getComplexWave(complexWave);
         
         if (!padSize.empty()) {
             cuFloatComplex *croppedComplexWave;
             cudaMalloc((void**)&croppedComplexWave, imSize[0] * imSize[1] * sizeof(cuFloatComplex));
             CUDAUtils::cropMatrix(complexWave, croppedComplexWave, newSize[0], newSize[1], padSize[0], padSize[1], padSize[0], padSize[1]);
             
-            cuFloatComplex *temp = complexWave;
+            cudaFree(complexWave);
             complexWave = croppedComplexWave;
-            cudaFree(temp);
+        }
+
+        if (isAPWP) {
+            iterResult.reconsProbe.getComplexWave(probe);
+
+            if (!padSize.empty()) {
+                cuFloatComplex *croppedProbe;
+                cudaMalloc((void**)&croppedProbe, imSize[0] * imSize[1] * sizeof(cuFloatComplex));
+                CUDAUtils::cropMatrix(probe, croppedProbe, newSize[0], newSize[1], padSize[0], padSize[1], padSize[0], padSize[1]);
+                cudaFree(probe);
+                probe = croppedProbe;
+            }
         }
 
         // Calculate phase and amplitude from reconstructed wave field
         WaveField reconsPsi(imSize[0], imSize[1], complexWave);
-        float *phase, *amplitude;
+        float *phase, *amplitude, *probePhase;
         cudaMalloc((void**)&phase, imSize[0] * imSize[1] * sizeof(float));
         cudaMalloc((void**)&amplitude, imSize[0] * imSize[1] * sizeof(float));
         reconsPsi.getPhase(phase);
         reconsPsi.getAmplitude(amplitude);
+        
+        if (isAPWP) {
+            WaveField reconsProbe(imSize[0], imSize[1], probe);
+            cudaMalloc((void**)&probePhase, imSize[0] * imSize[1] * sizeof(float));
+            reconsProbe.getPhase(probePhase);
+        }
 
-        F2DArray result(2, FArray(imSize[0] * imSize[1]));
+        F2DArray result(3, FArray(imSize[0] * imSize[1]));
         cudaMemcpy(result[0].data(), phase, imSize[0] * imSize[1] * sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(result[1].data(), amplitude, imSize[0] * imSize[1] * sizeof(float), cudaMemcpyDeviceToHost);
-
-        delete PS; delete PM; delete projectionSolver;
-        cudaFree(phase); cudaFree(amplitude); cudaFree(complexWave); cudaFree(holograms_gpu);
-        if (algorithm == ProjectionSolver::APWP) {
-            cudaFree(holoprobes_gpu); cudaFree(probe);
+        if (isAPWP) {
+            cudaMemcpy(result[2].data(), probePhase, imSize[0] * imSize[1] * sizeof(float), cudaMemcpyDeviceToHost);
         }
-        std::cout << "Deconstruction finished!" << std::endl;
+
+        delete projectionSolver; delete PM; delete PS; delete pPhase; delete pAmplitude; delete pSupport;
+        cudaFree(phase); cudaFree(amplitude); cudaFree(complexWave); cudaFree(holograms_gpu);
+        if (isAPWP) {
+            cudaFree(holoprobes_gpu); cudaFree(probe); cudaFree(probePhase);
+        }
+        if (!support.empty())
+            cudaFree(support_gpu);
 
         return result;
     }
@@ -563,4 +566,5 @@ namespace PhaseRetrieval
 
         delete PS;
     }
+
 }

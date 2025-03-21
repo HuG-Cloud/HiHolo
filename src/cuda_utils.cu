@@ -21,6 +21,9 @@ void CUFFTUtils::fft_fwd(cuFloatComplex *complexWave)
 void CUFFTUtils::fft_bwd(cuFloatComplex *complexWave)
 {
     cufftExecC2C(plan, complexWave, complexWave, CUFFT_INVERSE);
+    int blockSize = 1024;
+    int numBlocks = (numel + blockSize - 1) / blockSize;
+    scaleComplexData<<<numBlocks, blockSize>>>(complexWave, numel, 1.0f / numel);
 }
 
 void CUFFTUtils::fft_fwd_batch(cuFloatComplex *complexWave)
@@ -31,6 +34,9 @@ void CUFFTUtils::fft_fwd_batch(cuFloatComplex *complexWave)
 void CUFFTUtils::fft_bwd_batch(cuFloatComplex *complexWave)
 {
     cufftExecC2C(plan_batch, complexWave, complexWave, CUFFT_INVERSE);
+    int blockSize = 1024;
+    int numBlocks = (numel * batchSize + blockSize - 1) / blockSize;
+    scaleComplexData<<<numBlocks, blockSize>>>(complexWave, numel * batchSize, 1.0f / numel);
 }
 
 CUFFTUtils::~CUFFTUtils()
@@ -145,6 +151,29 @@ __global__ void adjustAmplitude(float *amplitude, float maxAmplitude, float minA
         }
         if (minAmplitude > 0) {
             amplitude[idx] = max(amplitude[idx], minAmplitude);
+        }
+    }
+}
+
+__global__ void adjustPhase(float *phase, float maxPhase, float minPhase, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        if (maxPhase < INFINITY) {
+            phase[idx] = min(phase[idx], maxPhase);
+        }
+        if (minPhase > -INFINITY) {
+            phase[idx] = max(phase[idx], minPhase);
+        }
+    }
+}
+
+__global__ void adjustComplexWave(cuFloatComplex *complexWave, const float *support, float outsideValue, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        if (support[idx] == 0) {
+            complexWave[idx] = make_cuFloatComplex(outsideValue, 0.0f);
         }
     }
 }
@@ -676,6 +705,19 @@ void CUDAUtils::padMatrix(float* matrix, float* matrix_new, int rows, int cols, 
         default:
             throw std::invalid_argument("Invalid padding type!");
     }
+}
+
+float* CUDAUtils::padInputData(float* inputData, const IntArray& imSize, const IntArray& newSize, const IntArray& padSize, PaddingType padType, float padValue)
+{
+    if (padSize.empty()) {
+        return inputData; // Un-padded case, return original data
+    }
+        
+    float* paddedData;
+    cudaMalloc((void**)&paddedData, newSize[0] * newSize[1] * sizeof(float));
+    CUDAUtils::padMatrix(inputData, paddedData, imSize[0], imSize[1], padSize[0], padSize[1], padType, padValue);
+        
+    return paddedData;
 }
 
 

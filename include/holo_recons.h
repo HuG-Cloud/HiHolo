@@ -11,9 +11,11 @@ namespace PhaseRetrieval
     //                          int rangeCols = 0, int movmeanSize = 5, const std::string &method = "multiplication");
     F2DArray reconstruct_iter(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelNumbers, int iterations, const FArray &initialPhase = FArray(),
                               ProjectionSolver::Algorithm algorithm = ProjectionSolver::AP, const FArray &algoParameters = FArray(), const IntArray &padSize = IntArray(),
-                              float minAmplitude = 0.0f, float maxAmplitude = FloatInf, PMagnitudeCons::Type projectionType = PMagnitudeCons::Averaged,
-                              CUDAPropKernel::Type kernelType = CUDAPropKernel::Fourier, CUDAUtils::PaddingType padType = CUDAUtils::PaddingType::Replicate,
-                              const FArray &holoProbes = FArray(), const FArray &initProbePhase = FArray(), bool calcError = false);
+                              float minPhase = -FloatInf, float maxPhase = FloatInf, float minAmplitude = 0.0f, float maxAmplitude = FloatInf, const FArray &support = FArray(),
+                              float outSideValue = 1.0f, PMagnitudeCons::Type projectionType = PMagnitudeCons::Averaged, CUDAPropKernel::Type kernelType = CUDAPropKernel::Fourier,
+                              CUDAUtils::PaddingType padType = CUDAUtils::PaddingType::Replicate, const FArray &holoProbes = FArray(), const FArray &initProbePhase = FArray(),
+                              bool calcError = false);
+                              
     FArray reconstruct_ctf(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelnumbers, float lowFreqLim = 1e-3f, float highFreqLim = 1e-1f,
                            float betaDeltaRatio = 0.0f, const IntArray &padSize = IntArray(), CUDAUtils::PaddingType padType = CUDAUtils::PaddingType::Replicate);
 

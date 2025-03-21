@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
     program.add_argument("--num_steps", "-n")
            .help("number of steps for placement")
            .required().nargs(argparse::nargs_pattern::at_least_one)
-           .scan<'g', double>(); 
+           .scan<'g', double>();
 
     try {
         program.parse_args(argc, argv);
@@ -61,11 +61,11 @@ int main(int argc, char* argv[])
     }
 
     auto start = std::chrono::high_resolution_clock::now();
-    DArray distances = ImageUtils::calibrateDistance(holograms, numImages, rows, cols,
-                                                     periodLength, pixelSize, numSteps, stepSize);
+    D2DArray distances = ImageUtils::calibrateDistance(holograms, numImages, rows, cols,
+                                                       periodLength, pixelSize, numSteps, stepSize);
     auto end = std::chrono::high_resolution_clock::now();
 
-    std::cout << "Distance calibrated: z1:" << distances[0] << " z2:" << distances[1] << std::endl;
+    // std::cout << "Distance calibrated: z1:" << distances[2][0] << " z2:" << distances[2][1] << std::endl;
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
 

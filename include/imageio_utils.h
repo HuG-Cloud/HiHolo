@@ -25,9 +25,9 @@ namespace ImageUtils
     // Remove stripes of different dimensions
     void removeStripes(cv::Mat &image, int rangeRows = 0, int rangeCols = 0, int windowSize = 5, const std::string &method = "multiplication");
 
-    itk::simple::Transform registerImage(const itk::simple::Image &fixedImage, itk::simple::Image &movingImage);
-    DArray calibrateDistance(const FArray &holograms, int numImages, int rows, int cols, double length, double pixelSize, const DArray &nz, double stepSize);
-    double computePixels(const cv::Mat &image);
+    IntArray registerImage(const itk::simple::Image &fixedImage, itk::simple::Image &movingImage);
+    D2DArray calibrateDistance(const FArray &holograms, int numImages, int rows, int cols, double length, double pixelSize, const DArray &nz, double stepSize);
+    double computePSD(const cv::Mat &image);
 
     void displayNDArray(F2DArray &images, int rows, int cols, const std::vector<std::string> &imgName);
     void displayPhase(FArray &phase, int rows, int cols, const std::string &imgName);

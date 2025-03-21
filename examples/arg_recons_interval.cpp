@@ -33,13 +33,21 @@ int main(int argc, char* argv[])
            .help("phase retrieval algorithm [0:ap, 1:raar, 2:hio, 3:drap, 4:apwp]")
            .required().default_value(0).scan<'i', int>();
 
+    program.add_argument("--plot_interval", "-pi")
+           .help("plot intervals for reconstruction")
+           .required().default_value(10).scan<'i', int>();
+
     program.add_argument("--algorithm_parameters", "-P")
            .help("parameters corresponding to different algorithm [default for hio and drap: 0.7]\n"
                  "default for raar: 0.75, 0.99, 20")
            .nargs(1, 3).scan<'g', float>();
 
-    program.add_argument("--amplitude_limits", "-l")
+    program.add_argument("--amplitude_limits", "-al")
            .help("minimum and maximum amplitude constraints")
+           .nargs(2).scan<'g', float>();
+
+    program.add_argument("--phase_limits", "-pl")
+           .help("minimum and maximum phase constraints")
            .nargs(2).scan<'g', float>();
 
     program.add_argument("--padding_size", "-s")
@@ -100,6 +108,7 @@ int main(int argc, char* argv[])
     }
 
     auto iterations = program.get<int>("-i");
+    auto plotInterval = program.get<int>("-pi");
 
     // Read initial phase and image size from user inputs
     FArray initialPhase;
@@ -112,7 +121,18 @@ int main(int argc, char* argv[])
        }
     }
 
+    // Get and print iterative algorithm
     auto algorithm = static_cast<ProjectionSolver::Algorithm>(program.get<int>("-a"));
+    std::cout << "Choosing algorithm: ";
+    switch (algorithm) {
+       case ProjectionSolver::AP: std::cout << "AP"; break;
+       case ProjectionSolver::RAAR: std::cout << "RAAR"; break;
+       case ProjectionSolver::HIO: std::cout << "HIO"; break;
+       case ProjectionSolver::DRAP: std::cout << "DRAP"; break;
+       case ProjectionSolver::APWP: std::cout << "AP with Probe"; break;
+       default: std::cout << "Unknown"; break;
+    }
+    std::cout << std::endl;
 
     // Read algorithm parameters
     FArray parameters;
@@ -126,9 +146,17 @@ int main(int argc, char* argv[])
     }
 
     FArray ampLimits {0, FloatInf};
-    if (program.is_used("-l")) {
-       ampLimits = program.get<FArray>("-l");
+    if (program.is_used("-al")) {
+       ampLimits = program.get<FArray>("-al");
     }
+
+    FArray phaLimits {-FloatInf, FloatInf};
+    if (program.is_used("-pl")) {
+       phaLimits = program.get<FArray>("-pl");
+    }
+
+    FArray support;
+    float outSideValue = 1.0f;
 
     // Process padding parameters
     IntArray padSize;
@@ -159,19 +187,46 @@ int main(int argc, char* argv[])
            }
        }
     }
-    
+
+    // Get and print projection method    
     auto projectionType = static_cast<PMagnitudeCons::Type>(program.get<int>("-t"));
+    std::cout << "Choosing projection method: ";
+    switch (projectionType) {
+       case PMagnitudeCons::Averaged: std::cout << "Averaged"; break;
+       case PMagnitudeCons::Sequential: std::cout << "Sequential"; break;
+       case PMagnitudeCons::Cyclic: std::cout << "Cyclic"; break;
+       default: std::cout << "Unknown"; break;
+    }
+    std::cout << std::endl;
+
+    // Get and print kernel method
     auto kernelMethod = static_cast<CUDAPropKernel::Type>(program.get<int>("-m"));
+    std::cout << "Choosing propagation kernel: ";
+    switch (kernelMethod) {
+       case CUDAPropKernel::Fourier: std::cout << "Fourier"; break;
+       case CUDAPropKernel::Chirp: std::cout << "Chirp"; break;
+       case CUDAPropKernel::ChirpLimited: std::cout << "Chirp Limited"; break;
+       default: std::cout << "Unknown"; break;
+    }
+    std::cout << std::endl;
+
     bool calcError = program.get<bool>("-e") ? true : false;
 
     F2DArray result;
-    for (int i = 0; i < iterations; ++i) {
-        result = PhaseRetrieval::reconstruct_iter(holograms, numHolograms, imSize, fresnelNumbers, 10, initialPhase,
-                                                  algorithm, parameters, padSize, ampLimits[0], ampLimits[1], projectionType,
-                                                  kernelMethod, padType, probeGrams, initProbePhase, calcError);
+    for (int i = 0; i < iterations / plotInterval; ++i) {
+        result = PhaseRetrieval::reconstruct_iter(holograms, numHolograms, imSize, fresnelNumbers, plotInterval, initialPhase,
+                                                  algorithm, parameters, padSize, phaLimits[0], phaLimits[1], ampLimits[0], 
+                                                  ampLimits[1], support, outSideValue, projectionType, kernelMethod, padType,
+                                                  probeGrams, initProbePhase, calcError);
     
         initialPhase = result[0];
-        ImageUtils::displayPhase(result[0], imSize[0], imSize[1], "phase reconstructed by " + std::to_string((i+1)*10) + " iterations");
+        if (algorithm == ProjectionSolver::APWP) {
+            initProbePhase = result[2];
+        }
+
+        ImageUtils::displayPhase(result[0], imSize[0], imSize[1], "phase reconstructed by " + \
+                                 std::to_string((i + 1) * plotInterval) + " iterations");
     }
+
     return 0;
 }
