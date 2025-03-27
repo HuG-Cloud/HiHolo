@@ -23,7 +23,8 @@ class WaveField
         void getAmplitude(float *amplitude) const;
         void getPhase(float *phase) const;
         int getRows() const {return rows;}
-        int getColumns() const {return cols;} 
+        int getColumns() const {return cols;}
+        int getSize() const {return rows * cols;}
         void getComplexWave(cuFloatComplex *cmpWave) const;
         cuFloatComplex *getComplexWave() const {return complexWave;}
         void setByAmplitude(const float *targetAmplitude);

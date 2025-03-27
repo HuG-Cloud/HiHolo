@@ -202,6 +202,23 @@ __global__ void subWaveField(cuFloatComplex *complexWave, const cuFloatComplex *
     }
 }
 
+__global__ void subNormFloat(float *result, const float *data1, const float *data2, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        result[idx] = powf(data1[idx] - data2[idx], 2);
+    }
+}
+
+__global__ void subNormComplex(float *result, const cuFloatComplex *cmpData1, const cuFloatComplex *cmpData2, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        cuFloatComplex tmp = cuCsubf(cmpData1[idx], cmpData2[idx]);
+        result[idx] = tmp.x * tmp.x + tmp.y * tmp.y;
+    }
+}
+
 __global__ void multiplyWaveField(cuFloatComplex *result, const cuFloatComplex *wf1, const cuFloatComplex *wf2, int numel)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -720,6 +737,35 @@ float* CUDAUtils::padInputData(float* inputData, const IntArray& imSize, const I
     return paddedData;
 }
 
+float CUDAUtils::computeL2Norm(const float* data1, const float* data2, int numel)
+{
+    float *temp;
+    cudaMalloc((void**)&temp, sizeof(float) * numel);
+
+    int blockSize = 1024;
+    int numBlocks = (numel + blockSize - 1) / blockSize;
+    subNormFloat<<<numBlocks, blockSize>>>(temp, data1, data2, numel);
+    
+    thrust::device_ptr<float> dev_ptr(temp);
+    float sqSum = thrust::reduce(dev_ptr, dev_ptr + numel, 0.0f, thrust::plus<float>());
+    cudaFree(temp);
+    return std::sqrt(sqSum);
+}
+
+float CUDAUtils::computeL2Norm(const cuFloatComplex* cmplxData1, const cuFloatComplex* cmplxData2, int numel)
+{
+    float *temp;
+    cudaMalloc((void**)&temp, sizeof(float) * numel);
+
+    int blockSize = 1024;
+    int numBlocks = (numel + blockSize - 1) / blockSize;
+    subNormComplex<<<numBlocks, blockSize>>>(temp, cmplxData1, cmplxData2, numel);
+
+    thrust::device_ptr<float> dev_ptr(temp);
+    float sqSum = thrust::reduce(dev_ptr, dev_ptr + numel, 0.0f, thrust::plus<float>());
+    cudaFree(temp);
+    return std::sqrt(sqSum);
+}
 
 void CUDAUtils::ctfRegWeights(float *regWeights, const IntArray &imSize, const FArray &fresnelNumber, float lowFreqLim, float highFreqLim)
 {

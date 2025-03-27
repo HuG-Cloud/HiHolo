@@ -6,7 +6,7 @@ const int ProjectionSolver::terminateIterations = 100;
 
 ProjectionSolver::ProjectionSolver(Projector *PM, Projector *PS, const WaveField &initialPsi, Algorithm algo, const FArray &algoParameters,
                                    bool calError): projMagnitude(PM), projObject(PS), algorithm(algo), parameters(algoParameters),
-                                   psi(initialPsi), calculateError(calError), oldPsi(initialPsi), PMPsi(initialPsi)
+                                   psi(initialPsi), calculateError(calError), oldPsi(initialPsi)
 {    
     // Map holographic algorithm to corresponding update method
     std::unordered_map<Algorithm, Method> methodMap {{AP, &ProjectionSolver::updateStepAP}, {RAAR, &ProjectionSolver::updateStepRAAR}, 
@@ -22,30 +22,30 @@ ProjectionSolver::ProjectionSolver(Projector *PM, Projector *PS, const WaveField
     isConverged = false;
     /* error measurements
        initialize the errors */
-    residual = F2DArray(3, FArray());
+    if (calculateError)
+        residual = F2DArray(2, FArray());
 }
 
 ProjectionSolver::ProjectionSolver(Projector *PM, Projector *PS, const WaveField &initialPsi, const WaveField &initialProbe,
                                    bool calError): projMagnitude(PM), projObject(PS), algorithm(APWP), psi(initialPsi),
-                                   probe(initialProbe), calculateError(calError), oldPsi(initialPsi), PMPsi(initialPsi)
+                                   probe(initialProbe), calculateError(calError), oldPsi(initialPsi)
 {
     update = &ProjectionSolver::updateStepAPWP;
     currentIteration = 1;
     isConverged = false;
     /* error measurements
        initialize the errors */
-    residual = F2DArray(3, FArray());
+    if (calculateError)
+        residual = F2DArray(2, FArray());
 }
 
 IterationResult ProjectionSolver::execute(int iterations)
 {   
     /* error measurements
        initialize the errors */
-    for (int i = 0; i < residual.size(); i++) {
-        if (i < 2)
-            residual[i].resize(iterations, 0);
-        else
-            residual[i].resize(iterations, FloatInf);
+    if (calculateError) {
+        residual[0].resize(iterations, 0);
+        residual[1].resize(iterations, FloatInf);
     }
     
     // Iterate until convergence or maximum iterations
@@ -56,16 +56,9 @@ IterationResult ProjectionSolver::execute(int iterations)
         update(this);
 
         /* Calculate Step error*/
-        // if (calculateStep) {
-        //     setResidual(0, MathUtils::complexL2Norm(psi.getComplexWave(), oldPsi.getComplexWave()));
-        // }
-
-        // /* Calculate Gap error */
-        // if (calculateGap)
-        // {
-        //     auto tmpComplexWave = projObject->project(oldPsi).projection.getComplexWave();
-        //     setResidual(1, MathUtils::complexL2Norm(PMPsi.getComplexWave(), tmpComplexWave));
-        // }
+        if (calculateError) {
+            setResidual(0, CUDAUtils::computeL2Norm(psi.getComplexWave(), oldPsi.getComplexWave(), psi.getSize()));
+        }
 
         // /* test if iteration is converged */
         // if (calculateStep && (currentIteration > 10 * terminateIterations))
@@ -93,7 +86,13 @@ IterationResult ProjectionSolver::execute(int iterations)
         currentIteration++;
     }
     
-    psi = projMagnitude->project(psi).projection;
+    auto magnitudeResult = projMagnitude->project(psi);
+    psi = magnitudeResult.projection;
+    if (calculateError) {
+        setResidual(1, magnitudeResult.residual);
+        setResidual(0, CUDAUtils::computeL2Norm(psi.getComplexWave(), oldPsi.getComplexWave(), psi.getSize()));
+    }
+    
     return {psi, probe, residual};
 }
 
@@ -103,7 +102,8 @@ void ProjectionSolver::updateStepAP()
     Projection magnitudeResult = projMagnitude->project(psi);
     Projection objectResult = projObject->project(magnitudeResult.projection);
 
-    setResidual(2, magnitudeResult.residual);
+    if (calculateError)
+        setResidual(1, magnitudeResult.residual);
     psi = objectResult.projection;
 }
 
@@ -113,7 +113,8 @@ void ProjectionSolver::updateStepAPWP()
     ProbeProjection magnitudeResult = projMagnitude->project(psi, probe);
     Projection objectResult = projObject->project(magnitudeResult.projection);
 
-    setResidual(2, magnitudeResult.residual);
+    if (calculateError)
+        setResidual(1, magnitudeResult.residual);
     probe = magnitudeResult.probeProjection;
     psi = objectResult.projection;
 }
@@ -136,7 +137,8 @@ void ProjectionSolver::updateStepRAAR()
     Reflection magnitudeResult = projMagnitude->reflect(psi);
     Reflection objectResult = projObject->reflect(magnitudeResult.reflection);
 
-    setResidual(2, magnitudeResult.residual);
+    if (calculateError)
+        setResidual(1, magnitudeResult.residual);
     // update the final psi, xNew = (b/2) .* (xNew + x) + (1-b) .* xPM;
     // psi = (objectResult.reflection + psi) * (b / 2.0f) + (1.0f - b) * PMPsi;
     (psi + objectResult.reflection) * (b / 2.0f) + magnitudeResult.projection * (1.0f - b);
@@ -154,7 +156,8 @@ void ProjectionSolver::updateStepHIO()
     Projection magnitudeResult = projMagnitude->project(psi);
     Reflection objectResult = projObject->reflect((1.0f + b) * magnitudeResult.projection - psi);
 
-    setResidual(2, magnitudeResult.residual);
+    if (calculateError)
+        setResidual(1, magnitudeResult.residual);
     // psi = (objectResult.reflection + psi + (1.0f - b) * PMPsi) * 0.5f;
     ((psi + objectResult.reflection) + magnitudeResult.projection * (1.0f - b)) * 0.5f;
 }
@@ -171,12 +174,13 @@ void ProjectionSolver::updateStepDRAP()
     Projection magnitudeResult = projMagnitude->project(psi);
     Projection objectResult = projObject->project((1.0f + b) * magnitudeResult.projection - b * psi);
 
-    setResidual(2, magnitudeResult.residual);
+    if (calculateError)
+        setResidual(1, magnitudeResult.residual);
     psi = objectResult.projection - (magnitudeResult.projection - psi) * b;
 }
 
 // Each index represents the different errors
 void ProjectionSolver::setResidual(int index, float error)
 {
-    residual[index][currentIteration] = error;
+    residual[index][currentIteration - 1] = error;
 }

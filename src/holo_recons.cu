@@ -313,7 +313,7 @@ namespace PhaseRetrieval
 
         Projector *PM;
         if (isAPWP) {
-            PM = new PMagnitudeCons(holograms_gpu, holoprobes_gpu, numImages, newSize, propagators, projectionType);
+            PM = new PMagnitudeCons(holograms_gpu, holoprobes_gpu, numImages, newSize, propagators, projectionType, calcError);
         } else {
             PM = new PMagnitudeCons(holograms_gpu, numImages, newSize, propagators, projectionType, calcError);
         }
@@ -328,9 +328,15 @@ namespace PhaseRetrieval
         }
 
         Projector *pAmplitude = new PAmplitudeCons(minAmplitude, maxAmplitude);
-        Projector *pPhase = new PPhaseCons(minPhase, maxPhase);
-        Projector *pSupport = new PSupportCons(support_gpu, newSize[0] * newSize[1], outSideValue);
-        Projector *PS = new MultiObjectCons(pPhase, pAmplitude, pSupport);
+        Projector *pPhase, *pSupport, *PS;
+        bool onlyAmpCons = (minPhase == -FloatInf && maxPhase == FloatInf && support.empty());
+        if (onlyAmpCons) {
+            PS = pAmplitude;
+        } else {
+            pPhase = new PPhaseCons(minPhase, maxPhase);
+            pSupport = new PSupportCons(support_gpu, newSize[0] * newSize[1], outSideValue);
+            PS = new MultiObjectCons(pPhase, pAmplitude, pSupport);
+        }
 
         // Initialize wave field from the guess phase
         cuFloatComplex *complexWave, *probe;
@@ -442,7 +448,15 @@ namespace PhaseRetrieval
             cudaMemcpy(result[2].data(), probePhase, imSize[0] * imSize[1] * sizeof(float), cudaMemcpyDeviceToHost);
         }
 
-        delete projectionSolver; delete PM; delete PS; delete pPhase; delete pAmplitude; delete pSupport;
+        if (calcError) {
+            result.push_back(iterResult.finalError[0]);
+            result.push_back(iterResult.finalError[1]);
+        }
+        
+        delete projectionSolver; delete PM; delete PS;
+        if (!onlyAmpCons) {
+            delete pPhase; delete pSupport; delete pAmplitude;
+        }
         cudaFree(phase); cudaFree(amplitude); cudaFree(complexWave); cudaFree(holograms_gpu);
         if (isAPWP) {
             cudaFree(holoprobes_gpu); cudaFree(probe); cudaFree(probePhase);

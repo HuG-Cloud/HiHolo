@@ -12,7 +12,7 @@
 struct Projection
 {
     WaveField projection;
-    float residual;
+    float residual; 
 };
 
 struct ProbeProjection
@@ -131,9 +131,9 @@ class PMagnitudeCons: public Projector
 
     public:
         PMagnitudeCons(const float *measuredGrams, int numimages, const IntArray &imsize, const std::vector<PropagatorPtr> &props,
-                       Type projectionType, bool calcError = false);
+                       Type projectionType, bool calcError = true);
         PMagnitudeCons(const float *measuredGrams, const float *p_measuredGrams, int numimages, const IntArray &imsize,
-                       const std::vector<PropagatorPtr> &props, Type projectionType);
+                       const std::vector<PropagatorPtr> &props, Type projectionType, bool calcError = true);
         virtual Projection project(const WaveField& waveField) override;
         virtual ProbeProjection project(const WaveField& waveField, const WaveField &probeField) override;
         ~PMagnitudeCons();

@@ -62,6 +62,8 @@ namespace CUDAUtils
     void ctfRegWeights(float *regWeights, const IntArray &imSize, const FArray &fresnelNumber, float lowFreqLim, float highFreqLim);
 
     float* padInputData(float* inputData, const IntArray& imSize, const IntArray& newSize, const IntArray& padSize, PaddingType padType, float padValue = 0.0f); 
+    float computeL2Norm(const cuFloatComplex* cmplxData1, const cuFloatComplex* cmplxData2, int numel);
+    float computeL2Norm(const float* data1, const float* data2, int numel);
 }
 
 // Normalize the inverse FFT result
@@ -98,6 +100,9 @@ __global__ void addWaveField(cuFloatComplex *complexWave, const cuFloatComplex *
 __global__ void subWaveField(cuFloatComplex *complexWave, const cuFloatComplex *waveField, int numel);
 __global__ void multiplyWaveField(cuFloatComplex *result, const cuFloatComplex *wf1, const cuFloatComplex *wf2, int numel);
 __global__ void reflectWaveField(cuFloatComplex *reflectedWave, const cuFloatComplex *waveField, int numel);
+
+__global__ void subNormComplex(float *result, const cuFloatComplex *cmpData1, const cuFloatComplex *cmpData2, int numel);
+__global__ void subNormFloat(float *result, const float *data1, const float *data2, int numel);
 
 __global__ void adjustAmplitude(float *amplitude, float maxAmplitude, float minAmplitude, int numel);
 __global__ void adjustPhase(float *phase, float maxPhase, float minPhase, int numel);

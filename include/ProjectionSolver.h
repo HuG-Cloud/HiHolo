@@ -17,24 +17,22 @@ struct IterationResult
 class ProjectionSolver
 {   
     public:
-        enum Algorithm {AP, RAAR, HIO, DRAP, APWP};     
+        enum Algorithm {AP, RAAR, HIO, DRAP, APWP};
         typedef std::function<void(ProjectionSolver*)> Method;
 
     private:
         Projector *projMagnitude;
         Projector *projObject;
         bool isConverged;
-        // each Frray represents a different error
+        // Each Frray represents a different error
         F2DArray residual;
         WaveField psi;
         WaveField oldPsi;
         WaveField probe;
-        WaveField PMPsi;
 
         /**
-         * whether to calculate errors including step, gap, magnitude error
+         * Whether to calculate errors including step, magnitude error
          * Step: |x_n - x_(n-1)|
-         * Gap: |PS(x) - PM(x)| / N
          * Magnitude
          */
         bool calculateError; 
@@ -42,7 +40,7 @@ class ProjectionSolver
         static const int terminateIterations;
         void setResidual(int index, float error);
 
-        // choose function according to algorithm
+        // Choose function according to algorithm
         Algorithm algorithm;
         Method update;
         void updateStepAP();
@@ -50,16 +48,16 @@ class ProjectionSolver
         void updateStepRAAR();
         void updateStepDRAP();
         void updateStepAPWP();
-        // start at 1
+        // Start at 1
         int currentIteration;
-        // parameters for RAAR/HIO/DRAP algorithm        
+        // Parameters for RAAR/HIO/DRAP algorithm        
         FArray parameters;
 
     public:
         ProjectionSolver(Projector *PM, Projector *PS, const WaveField &initialPsi,
-                         Algorithm algo, const FArray &algoParameters, bool calError = false);
+                         Algorithm algo, const FArray &algoParameters, bool calError = true);
         ProjectionSolver(Projector *PM, Projector *PS, const WaveField &initialPsi,
-                         const WaveField &initialProbe, bool calError = false);
+                         const WaveField &initialProbe, bool calError = true);
         IterationResult execute(int iterations);
         ~ProjectionSolver() = default;
 };

@@ -61,11 +61,11 @@ int main(int argc, char* argv[])
     }
 
     auto start = std::chrono::high_resolution_clock::now();
-    D2DArray distances = ImageUtils::calibrateDistance(holograms, numImages, rows, cols,
+    D2DArray parameters = ImageUtils::calibrateDistance(holograms, numImages, rows, cols,
                                                        periodLength, pixelSize, numSteps, stepSize);
     auto end = std::chrono::high_resolution_clock::now();
 
-    // std::cout << "Distance calibrated: z1:" << distances[2][0] << " z2:" << distances[2][1] << std::endl;
+    // std::cout << "Distance calibrated: z1:" << parameters[2][0] << " z2:" << parameters[2][1] << std::endl;
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
 

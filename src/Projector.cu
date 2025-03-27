@@ -181,8 +181,8 @@ PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const 
 }
 
 PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, const float *p_measuredGrams, int numimages, const IntArray &imsize, 
-                               const std::vector<PropagatorPtr> &props, Type projectionType): measurements(measuredGrams), imSize(imsize), 
-                               p_measurements(p_measuredGrams), numImages(numimages), propagators(props), type(projectionType)
+                               const std::vector<PropagatorPtr> &props, Type projectionType, bool calcError): measurements(measuredGrams), imSize(imsize), 
+                               p_measurements(p_measuredGrams), numImages(numimages), propagators(props), type(projectionType), calculateError(calcError)
 {
     if (type != Averaged) {
         throw std::invalid_argument("Invalid projection computing method!");
@@ -207,17 +207,11 @@ void PMagnitudeCons::projectStep(const float *measuredGrams, const PropagatorPtr
     computeAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, amp3DWave, imSize[0] * imSize[1] * batchSize);
 
     /* optionally calculate residual */
-    // if (calculateError) {
-
-    //     double squaredSum = 0;
-    //     for (int i = 0; i < amp3DWave.size(); i++) {
-    //         squaredSum += MathUtils::diffInnerProduct(amp3DWave[i], measuredGrams[i]);
-    //     }
-    //     residual = std::sqrt(squaredSum);
-
-    // } else {
-    //     residual = DoubleInf;
-    // }
+    if (calculateError) {
+        residual = CUDAUtils::computeL2Norm(amp3DWave, measuredGrams, imSize[0] * imSize[1] * batchSize);
+    } else {
+        residual = FloatInf;
+    }
 
     limitAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, amp3DWave, measuredGrams, imSize[0] * imSize[1] * batchSize);
     prop->backPropagate(cmp3DWave, complexWave);
@@ -234,7 +228,13 @@ void PMagnitudeCons::projProbeAveraged()
     propagators[0]->propagate(probeWave, cmp3DWave);
 
     numBlocks = numBlocks2;
-    limitAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, measurements, imSize[0] * imSize[1] * batchSize);
+    computeAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, amp3DWave, imSize[0] * imSize[1] * batchSize);
+    if (calculateError) {
+        residual = CUDAUtils::computeL2Norm(amp3DWave, measurements, imSize[0] * imSize[1] * batchSize);
+    } else {
+        residual = FloatInf;
+    }
+    limitAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, amp3DWave, measurements, imSize[0] * imSize[1] * batchSize);
     propagators[0]->backPropagate(cmp3DWave, probeWave);
 
     // Isolate probe and propagate

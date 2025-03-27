@@ -14,7 +14,7 @@ namespace PhaseRetrieval
                               float minPhase = -FloatInf, float maxPhase = FloatInf, float minAmplitude = 0.0f, float maxAmplitude = FloatInf, const FArray &support = FArray(),
                               float outSideValue = 1.0f, PMagnitudeCons::Type projectionType = PMagnitudeCons::Averaged, CUDAPropKernel::Type kernelType = CUDAPropKernel::Fourier,
                               CUDAUtils::PaddingType padType = CUDAUtils::PaddingType::Replicate, const FArray &holoProbes = FArray(), const FArray &initProbePhase = FArray(),
-                              bool calcError = false);
+                              bool calcError = true);
                               
     FArray reconstruct_ctf(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelnumbers, float lowFreqLim = 1e-3f, float highFreqLim = 1e-1f,
                            float betaDeltaRatio = 0.0f, const IntArray &padSize = IntArray(), CUDAUtils::PaddingType padType = CUDAUtils::PaddingType::Replicate);

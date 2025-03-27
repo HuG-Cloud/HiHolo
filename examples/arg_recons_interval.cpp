@@ -210,9 +210,13 @@ int main(int argc, char* argv[])
     }
     std::cout << std::endl;
 
-    bool calcError = program.get<bool>("-e") ? true : false;
-
-    F2DArray result;
+    F2DArray result, residuals;
+    bool calcError = program.get<bool>("-e");
+    if (calcError) {
+        residuals = F2DArray(2, FArray(iterations));
+    }
+    
+    auto start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations / plotInterval; ++i) {
         result = PhaseRetrieval::reconstruct_iter(holograms, numHolograms, imSize, fresnelNumbers, plotInterval, initialPhase,
                                                   algorithm, parameters, padSize, phaLimits[0], phaLimits[1], ampLimits[0], 
@@ -224,9 +228,18 @@ int main(int argc, char* argv[])
             initProbePhase = result[2];
         }
 
+        if (calcError) {
+            std::copy(result[3].begin(), result[3].end(), residuals[0].begin() + i * plotInterval);
+            std::copy(result[4].begin(), result[4].end(), residuals[1].begin() + i * plotInterval);
+        }
+
         ImageUtils::displayPhase(result[0], imSize[0], imSize[1], "phase reconstructed by " + \
                                  std::to_string((i + 1) * plotInterval) + " iterations");
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Time taken: " << duration.count() << " milliseconds" << std::endl;
 
     return 0;
 }
