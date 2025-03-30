@@ -338,123 +338,250 @@ void ImageUtils::displayPhase(FArray &phase, int rows, int cols, const std::stri
 
 bool IOUtils::readDataDims(const std::string &filename, const std::string &datasetName, std::vector<hsize_t> &dims)
 {
-    try {
-        // Open H5 file and dataset
-        H5::H5File file(filename, H5F_ACC_RDONLY);
-        H5::DataSet dataset = file.openDataSet(datasetName);
+    // 使用HDF5的C接口实现
+    hid_t file_id, dataset_id, dataspace_id;
+    herr_t status;
 
-        // Get dataspace and dimensions
-        H5::DataSpace dataspace = dataset.getSpace();
-        int rank = dataspace.getSimpleExtentNdims();
-        
-        // Resize dims vector and get dimension info
-        dims.resize(rank);
-        dataspace.getSimpleExtentDims(dims.data(), nullptr);
-
-        return true;
-    } catch(H5::Exception &error) {
-        std::cerr << "Error reading dataset dimensions: " << error.getDetailMsg() << std::endl;
+    // 打开H5文件和数据集
+    file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        std::cerr << "Error opening file: " << filename << std::endl;
         return false;
     }
+
+    dataset_id = H5Dopen2(file_id, datasetName.c_str(), H5P_DEFAULT);
+    if (dataset_id < 0) {
+        std::cerr << "Error opening dataset: " << datasetName << std::endl;
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 获取数据空间和维度
+    dataspace_id = H5Dget_space(dataset_id);
+    if (dataspace_id < 0) {
+        std::cerr << "Error getting dataspace for dataset: " << datasetName << std::endl;
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    int ndims = H5Sget_simple_extent_ndims(dataspace_id);
+    // 调整dims向量大小并获取维度信息
+    dims.resize(ndims);
+    status = H5Sget_simple_extent_dims(dataspace_id, dims.data(), nullptr);
+    if (status < 0) {
+        std::cerr << "Error getting dimensions of dataspace for dataset: " << datasetName << std::endl;
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 关闭资源
+    H5Sclose(dataspace_id);
+    H5Dclose(dataset_id);
+    H5Fclose(file_id);
+
+    return true;
 }
 
 bool IOUtils::readProcessedGrams(const std::string &filename, const std::string &datasetName, FArray &holograms, std::vector<hsize_t> &dims)
-{       
-    try {
-        // Open H5 file and dataset
-        H5::H5File file(filename, H5F_ACC_RDONLY);
-        H5::DataSet dataset = file.openDataSet(datasetName);
+{
+    // 使用HDF5的C接口实现
+    hid_t file_id, dataset_id, dataspace_id;
 
-        // Make sure the dataset dimensions is 3D
-        H5::DataSpace dataspace = dataset.getSpace();
-        int rank = dataspace.getSimpleExtentNdims();
-        if (rank != 3) {
-            std::cerr << "Error: DataSet is not 3-dimensional!" << std::endl;
-            return false;
-        }
-
-        // Get dimension info and read data to FArray
-        dims.resize(rank);
-        dataspace.getSimpleExtentDims(dims.data(), nullptr);
-
-        holograms.resize(dims[0] * dims[1] * dims[2]);
-        dataset.read(holograms.data(), H5::PredType::NATIVE_FLOAT);
-
-    } catch(H5::Exception &error) {
-        std::cerr << "Error reading dataset: " << error.getDetailMsg() << std::endl;
+    // 打开H5文件和数据集
+    file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        std::cerr << "Error opening file: " << filename << std::endl;
         return false;
     }
+
+    dataset_id = H5Dopen2(file_id, datasetName.c_str(), H5P_DEFAULT);
+    if (dataset_id < 0) {
+        std::cerr << "Error opening dataset: " << datasetName << std::endl;
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 确保数据集维度是3D
+    dataspace_id = H5Dget_space(dataset_id);
+    if (dataspace_id < 0) {
+        std::cerr << "Error getting dataspace for dataset: " << datasetName << std::endl;
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    int rank = H5Sget_simple_extent_ndims(dataspace_id);
+    if (rank != 3) {
+        std::cerr << "Error: DataSet is not 3-dimensional!" << std::endl;
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 获取维度信息并读取数据到FArray
+    dims.resize(rank);
+    H5Sget_simple_extent_dims(dataspace_id, dims.data(), nullptr);
+
+    holograms.resize(dims[0] * dims[1] * dims[2]);
+    H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, holograms.data());
+
+    // 关闭资源
+    H5Sclose(dataspace_id);
+    H5Dclose(dataset_id);
+    H5Fclose(file_id);
 
     return true;
 }
 
 bool IOUtils::readPhasegrams(const std::string &filename, const std::string &datasetName, FArray &phase, std::vector<hsize_t> &dims)
 {
-    try {
-        // Open H5 file and dataset
-        H5::H5File file(filename, H5F_ACC_RDONLY);
-        H5::DataSet dataset = file.openDataSet(datasetName);
-
-        // Make sure the dataset dimensions is 2D
-        H5::DataSpace dataspace = dataset.getSpace();
-        int rank = dataspace.getSimpleExtentNdims();
-        if (rank != 2) {
-            std::cerr << "Error: DataSet is not 2-dimensional!" << std::endl;
-            return false;
-        }
-
-        // Get dimension info and read data to FArray
-        dims.resize(rank);
-        dataspace.getSimpleExtentDims(dims.data(), nullptr);
-
-        phase.resize(dims[0] * dims[1]);
-        dataset.read(phase.data(), H5::PredType::NATIVE_FLOAT);
-
-        return true;
-    } catch(H5::Exception &error) {
-
-        std::cerr << "Error reading dataset: " << error.getDetailMsg() << std::endl;
+    // 打开H5文件和数据集
+    hid_t file_id, dataset_id, dataspace_id;
+    
+    file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        std::cerr << "Error opening file: " << filename << std::endl;
         return false;
     }
+
+    dataset_id = H5Dopen2(file_id, datasetName.c_str(), H5P_DEFAULT);
+    if (dataset_id < 0) {
+        std::cerr << "Error opening dataset: " << datasetName << std::endl;
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 确保数据集维度是2D
+    dataspace_id = H5Dget_space(dataset_id);
+    if (dataspace_id < 0) {
+        std::cerr << "Error getting dataspace for dataset: " << datasetName << std::endl;
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    int rank = H5Sget_simple_extent_ndims(dataspace_id);
+    if (rank != 2) {
+        std::cerr << "Error: DataSet is not 2-dimensional!" << std::endl;
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 获取维度信息并读取数据到FArray
+    dims.resize(rank);
+    H5Sget_simple_extent_dims(dataspace_id, dims.data(), nullptr);
+
+    phase.resize(dims[0] * dims[1]);
+    H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, phase.data());
+
+    // 关闭资源
+    H5Sclose(dataspace_id);
+    H5Dclose(dataset_id);
+    H5Fclose(file_id);
+
+    return true;
 }
 
 bool IOUtils::savePhasegrams(const std::string &filename, const std::string &datasetName, const FArray &reconsPhase, int rows, int cols)
 {
-    try {
-        // Create file and data space
-        H5::H5File file(filename, H5F_ACC_TRUNC);
-        hsize_t dims[2] {rows, cols};
-        H5::DataSpace dataspace(2, dims);
+    hid_t file_id, dataset_id, dataspace_id;
+    herr_t status;
 
-        // Create dataset and write data
-        H5::DataSet dataset = file.createDataSet(datasetName, H5::PredType::NATIVE_FLOAT, dataspace);
-        dataset.write(reconsPhase.data(), H5::PredType::NATIVE_FLOAT);
-
-        return true;
-    } catch(H5::Exception &error) {
-        std::cerr << "Error writing dataset: " << error.getDetailMsg() << std::endl;
+    // 创建文件
+    file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        std::cerr << "Error creating file: " << filename << std::endl;
         return false;
     }
-    
+
+    // 创建数据空间
+    hsize_t dims[2] {rows, cols};
+    dataspace_id = H5Screate_simple(2, dims, nullptr);
+    if (dataspace_id < 0) {
+        std::cerr << "Error creating dataspace" << std::endl;
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 创建数据集
+    dataset_id = H5Dcreate2(file_id, datasetName.c_str(), H5T_NATIVE_FLOAT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dataset_id < 0) {
+        std::cerr << "Error creating dataset: " << datasetName << std::endl;
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 写入数据
+    status = H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, reconsPhase.data());
+    if (status < 0) {
+        std::cerr << "Error writing dataset" << std::endl;
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 关闭资源
+    H5Dclose(dataset_id);
+    H5Sclose(dataspace_id);
+    H5Fclose(file_id);
+
+    return true;
 }
 
 bool IOUtils::save3DGrams(const std::string &filename, const std::string &datasetName, const FArray &registeredGrams, int numImages, int rows, int cols)
 {
-    try {
-        // Create file and data space
-        H5::H5File file(filename, H5F_ACC_TRUNC);
-        hsize_t dims[3] {numImages, rows, cols};
-        H5::DataSpace dataspace(3, dims);
+    hid_t file_id, dataset_id, dataspace_id;
+    herr_t status;
 
-        // Create dataset and write data
-        H5::DataSet dataset = file.createDataSet(datasetName, H5::PredType::NATIVE_FLOAT, dataspace);
-        dataset.write(registeredGrams.data(), H5::PredType::NATIVE_FLOAT);
-
-        return true;
-    } catch(H5::Exception &error) {
-        std::cerr << "Error writing dataset: " << error.getDetailMsg() << std::endl;
+    // 创建文件
+    file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        std::cerr << "Error creating file: " << filename << std::endl;
         return false;
     }
+
+    // 创建数据空间
+    hsize_t dims[3] {numImages, rows, cols};
+    dataspace_id = H5Screate_simple(3, dims, nullptr);
+    if (dataspace_id < 0) {
+        std::cerr << "Error creating dataspace" << std::endl;
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 创建数据集
+    dataset_id = H5Dcreate2(file_id, datasetName.c_str(), H5T_NATIVE_FLOAT, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dataset_id < 0) {
+        std::cerr << "Error creating dataset: " << datasetName << std::endl;
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 写入数据
+    status = H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, registeredGrams.data());
+    if (status < 0) {
+        std::cerr << "Error writing dataset" << std::endl;
+        H5Dclose(dataset_id);
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 关闭资源
+    H5Dclose(dataset_id);
+    H5Sclose(dataspace_id);
+    H5Fclose(file_id);
+
+    return true;
 }
 
 // bool IOUtils::saveProcessedGrams(const std::string &filename, const std::string &datasetName, const FArray &processedGrams, int numImages, int rows, int cols)
@@ -484,112 +611,166 @@ bool IOUtils::save3DGrams(const std::string &filename, const std::string &datase
 
 bool IOUtils::read4DimData(const std::string &filename, const std::string &datasetName, FArray &data, hsize_t offset, hsize_t count)
 {
-    try {
-        // Open HDF5 file and dataset
-        H5::H5File file(filename, H5F_ACC_RDONLY);
-        H5::DataSet dataset = file.openDataSet(datasetName);
-        
-        // Get dataspace
-        H5::DataSpace dataspace = dataset.getSpace();
-        hsize_t dims[4];
-        dataspace.getSimpleExtentDims(dims, nullptr);
-        
-        // Set read region
-        hsize_t offset_[4] = {offset, 0, 0, 0};
-        hsize_t count_[4] = {count, dims[1], dims[2], dims[3]};
-        dataspace.selectHyperslab(H5S_SELECT_SET, count_, offset_);
-        
-        H5::DataSpace memspace(4, count_);        
-        // Resize data array and read data
-        data.resize(count_[0] * count_[1] * count_[2] * count_[3]);
-        dataset.read(data.data(), H5::PredType::NATIVE_FLOAT, memspace, dataspace);
-        
-        return true;
-    } catch(H5::Exception &error) {
-        std::cerr << "Error reading dataset: " << error.getDetailMsg() << std::endl;
+    // 使用HDF5的C接口实现
+    hid_t file_id, dataset_id, dataspace_id, memspace_id;
+    herr_t status;
+
+    // 打开H5文件和数据集
+    file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        std::cerr << "Error opening file: " << filename << std::endl;
         return false;
     }
+
+    dataset_id = H5Dopen2(file_id, datasetName.c_str(), H5P_DEFAULT);
+    if (dataset_id < 0) {
+        std::cerr << "Error opening dataset: " << datasetName << std::endl;
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 获取数据空间
+    dataspace_id = H5Dget_space(dataset_id);
+    if (dataspace_id < 0) {
+        std::cerr << "Error getting dataspace" << std::endl;
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 获取数据维度
+    hsize_t dims[4]; 
+    status = H5Sget_simple_extent_dims(dataspace_id, dims, nullptr);
+    if (status < 0) {
+        std::cerr << "Error getting dimensions" << std::endl;
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 设置读取区域
+    hsize_t offset_[4] = {offset, 0, 0, 0};
+    hsize_t count_[4] = {count, dims[1], dims[2], dims[3]};
+    H5Sselect_hyperslab(dataspace_id, H5S_SELECT_SET, offset_, nullptr, count_, nullptr);
+
+    // 创建内存空间
+    memspace_id = H5Screate_simple(4, count_, nullptr);
+
+    // 调整数据大小并读取
+    data.resize(count_[0] * count_[1] * count_[2] * count_[3]);
+    status = H5Dread(dataset_id, H5T_NATIVE_FLOAT, memspace_id, dataspace_id, H5P_DEFAULT, data.data());
+    if (status < 0) {
+        std::cerr << "Error reading dataset" << std::endl;
+        H5Sclose(memspace_id);
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 关闭资源
+    H5Sclose(memspace_id);
+    H5Sclose(dataspace_id);
+    H5Dclose(dataset_id);
+    H5Fclose(file_id);
+
+    return true;
 }
 
 bool IOUtils::createFileDataset(const std::string &filename, const std::string &datasetName, const std::vector<hsize_t> &dims)
 {
-    try {
-        // Create HDF5 file
-        H5::H5File file(filename, H5F_ACC_TRUNC);
-        // Create data space
-        H5::DataSpace dataspace(dims.size(), dims.data());
-        // Create dataset
-        H5::DataSet dataset = file.createDataSet(datasetName, H5::PredType::NATIVE_FLOAT, dataspace);
-        
-        return true;
-    } catch(H5::Exception &error) {
-        std::cerr << "Error creating dataset: " << error.getDetailMsg() << std::endl;
-        return false;
-    }
-}
+    // 使用C接口替代C++接口，以便更好地控制资源
+    hid_t file_id, dataset_id, dataspace_id;
 
-bool IOUtils::write3DimData(const std::string &filename, const std::string &datasetName, const FArray &data, 
-                            const std::vector<hsize_t> &dims, hsize_t offset)
-{
-    try {
-        // Try to open the file, create if it doesn't exist
-        H5::H5File file;
-        if (offset == 0) {
-            file = H5::H5File(filename, H5F_ACC_TRUNC);
-        } else {
-            file.openFile(filename, H5F_ACC_RDWR);
-        }
-        
-        H5::DataSet dataset;
-        if (offset == 0) {
-            // Create new dataset if it doesn't exist
-            H5::DataSpace dataspace(3, dims.data());
-            dataset = file.createDataSet(datasetName, H5::PredType::NATIVE_FLOAT, dataspace);
-        } else {
-            // Try to open existing dataset
-            dataset = file.openDataSet(datasetName);
-        }
-        
-        // Set write region, write one batch at a time
-        hsize_t offset_[3] = {offset, 0, 0};
-        hsize_t count_[3] = {data.size() / (dims[1] * dims[2]), dims[1], dims[2]};
-        
-        H5::DataSpace dataspace = dataset.getSpace();
-        dataspace.selectHyperslab(H5S_SELECT_SET, count_, offset_);
-        
-        // Create memory space and write data
-        H5::DataSpace memspace(3, count_);        
-        dataset.write(data.data(), H5::PredType::NATIVE_FLOAT, memspace, dataspace);
-        
-        return true;
-    } catch(H5::Exception &error) {
-        std::cerr << "Error writing dataset: " << error.getDetailMsg() << std::endl;
+    // 创建HDF5文件
+    file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    if (file_id < 0) {
+        std::cerr << "Error creating file: " << filename << std::endl;
         return false;
     }
+
+    // 创建数据空间
+    dataspace_id = H5Screate_simple(dims.size(), dims.data(), nullptr);
+    if (dataspace_id < 0) {
+        std::cerr << "Error creating dataspace" << std::endl;
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 创建数据集
+    dataset_id = H5Dcreate2(file_id, datasetName.c_str(), H5T_NATIVE_FLOAT, dataspace_id, 
+                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dataset_id < 0) {
+        std::cerr << "Error creating dataset: " << datasetName << std::endl;
+        H5Sclose(dataspace_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 关闭资源
+    H5Dclose(dataset_id);
+    H5Sclose(dataspace_id);
+    H5Fclose(file_id);
+
+    return true;
 }
 
 bool IOUtils::write4DimData(const std::string &filename, const std::string &datasetName, const FArray &data, 
                             const std::vector<hsize_t> &dims, hsize_t offset)
 {
-    try {
-        // Try to open the file, create if it doesn't exist
-        H5::H5File file = H5::H5File(filename, H5F_ACC_RDWR);        
-        H5::DataSet dataset = file.openDataSet(datasetName);
-        
-        // Set write region, write one batch at a time
-        hsize_t offset_[4] = {offset, 0, 0, 0};
-        hsize_t count_[4] = {data.size() / (dims[1] * dims[2] * dims[3]), dims[1], dims[2], dims[3]};
-        
-        // Get dataspace and set write region
-        H5::DataSpace dataspace = dataset.getSpace();
-        dataspace.selectHyperslab(H5S_SELECT_SET, count_, offset_);
-        
-        H5::DataSpace memspace(4, count_);        
-        dataset.write(data.data(), H5::PredType::NATIVE_FLOAT, memspace, dataspace);
-        
-        return true;
-    } catch(H5::Exception &error) {
-        std::cerr << "Error writing dataset: " << error.getDetailMsg() << std::endl;
+    // 使用HDF5的C接口实现
+    hid_t file_id, dataset_id, dataspace_id, memspace_id;
+    herr_t status;
+
+    // 打开H5文件和数据集
+    file_id = H5Fopen(filename.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+    if (file_id < 0) {
+        std::cerr << "Error opening file: " << filename << std::endl;
         return false;
     }
+
+    dataset_id = H5Dopen2(file_id, datasetName.c_str(), H5P_DEFAULT);
+    if (dataset_id < 0) {
+        std::cerr << "Error opening dataset: " << datasetName << std::endl;
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 获取数据空间
+    dataspace_id = H5Dget_space(dataset_id);
+    if (dataspace_id < 0) {
+        std::cerr << "Error getting dataspace" << std::endl;
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 计算要写入的数据大小
+    hsize_t count_[4] = {data.size() / (dims[1] * dims[2] * dims[3]), dims[1], dims[2], dims[3]};
+    hsize_t offset_[4] = {offset, 0, 0, 0};
+
+    // 选择写入的区域
+    H5Sselect_hyperslab(dataspace_id, H5S_SELECT_SET, offset_, nullptr, count_, nullptr);
+    // 创建内存空间
+    memspace_id = H5Screate_simple(4, count_, nullptr);
+
+    // 写入数据
+    status = H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, memspace_id, dataspace_id, H5P_DEFAULT, data.data());
+    if (status < 0) {
+        std::cerr << "Error writing dataset" << std::endl;
+        H5Sclose(memspace_id);
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+
+    // 关闭资源
+    H5Sclose(memspace_id);
+    H5Sclose(dataspace_id);
+    H5Dclose(dataset_id);
+    H5Fclose(file_id);
+
+    return true;
 }

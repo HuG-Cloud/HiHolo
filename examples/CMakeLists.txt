@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(holo_recons_interval LANGUAGES CXX CUDA)
+project(holo_registration LANGUAGES CXX CUDA C)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui imgcodecs)
 find_package(CUDA REQUIRED)
 find_package(GSL REQUIRED)
-find_package(HDF5 REQUIRED COMPONENTS CXX)
+find_package(HDF5 REQUIRED)
 
 # SimpleITK 和 ITK 配置
 set(SimpleITK_DIR "/home/hug/workspace/software/SimpleITK-build/SimpleITK-build" CACHE PATH "SimpleITK 配置目录")
@@ -28,7 +28,7 @@ include_directories(
 
 # 定义源文件
 set(CPP_SRCS
-    arg_recons_interval.cpp
+    arg_holo_reg.cpp
     ../src/math_utils.cpp
     ../src/imageio_utils.cpp
     ../src/ProjectionSolver.cpp
@@ -52,7 +52,6 @@ target_link_libraries(${PROJECT_NAME}
     ${CUDA_cufft_LIBRARY}
     ${CUDA_nppidei_LIBRARY}
     ${CUDA_nppc_LIBRARY}
-    ${HDF5_CXX_LIBRARIES}
     ${HDF5_LIBRARIES}
     ${SimpleITK_LIBRARIES}
     ${GSL_LIBRARIES}

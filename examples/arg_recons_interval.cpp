@@ -91,7 +91,7 @@ int main(int argc, char* argv[])
     std::vector<hsize_t> dims;
     std::vector<std::string> inputs = program.get<std::vector<std::string>>("-I");
     IOUtils::readProcessedGrams(inputs[0], inputs[1], holograms, dims);
-    if (holograms.empty() || dims.size() != 3) {
+    if (holograms.empty()) {
        throw std::runtime_error("Invalid holograms or dimensions!");
     }
     
@@ -116,7 +116,7 @@ int main(int argc, char* argv[])
     if (program.is_used("-g")) {
        input_phase = program.get<std::vector<std::string>>("-g");
        IOUtils::readPhasegrams(input_phase[0], input_phase[1], initialPhase, dims);
-       if (initialPhase.empty() || dims.size() != 2) {
+       if (initialPhase.empty()) {
             throw std::runtime_error("Invalid initial phase or dimensions!");
        }
     }
@@ -175,14 +175,14 @@ int main(int argc, char* argv[])
 
        inputs = program.get<std::vector<std::string>>("-ip");
        IOUtils::readProcessedGrams(inputs[0], inputs[1], probeGrams, dims);
-       if (probeGrams.empty() || dims.size() != 3) {
+       if (probeGrams.empty()) {
            throw std::runtime_error("Invalid probe grams or dimensions!");
        }
 
        if (program.is_used("-gp")) {
            input_phase = program.get<std::vector<std::string>>("-gp");
            IOUtils::readPhasegrams(input_phase[0], input_phase[1], initProbePhase, dims);
-           if (initProbePhase.empty() || dims.size() != 2) {
+           if (initProbePhase.empty()) {
                 throw std::runtime_error("Invalid initial probe phase or dimensions!");
            }
        }
