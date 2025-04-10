@@ -108,6 +108,7 @@ class PMagnitudeCons: public Projector
         const float *measurements;
         const float *p_measurements;
         IntArray imSize;
+        IntArray measSize;
         bool calculateError;
         std::vector<PropagatorPtr> propagators;
         int numImages;
@@ -121,6 +122,7 @@ class PMagnitudeCons: public Projector
         cuFloatComplex *probe;
         float *amp3DWave;
         float residual;
+
         // choose function according to different projection methods
         Method calculate;
         void projectStep(const float *measuredGrams, const PropagatorPtr &prop);
@@ -128,12 +130,17 @@ class PMagnitudeCons: public Projector
         void projSequential();
         void projCyclic();
         void projProbeAveraged();
+        void projBIPAveraged();
 
     public:
+        // Classical iterative phase retrieval
         PMagnitudeCons(const float *measuredGrams, int numimages, const IntArray &imsize, const std::vector<PropagatorPtr> &props,
                        Type projectionType, bool calcError = true);
+        // Phase retrieval with probe field
         PMagnitudeCons(const float *measuredGrams, const float *p_measuredGrams, int numimages, const IntArray &imsize,
                        const std::vector<PropagatorPtr> &props, Type projectionType, bool calcError = true);
+        PMagnitudeCons(const float *measuredGrams, int numimages, const IntArray &meassize, const std::vector<PropagatorPtr> &props,
+                       const IntArray &imsize, Type projectionType, bool calcError = true);
         virtual Projection project(const WaveField& waveField) override;
         virtual ProbeProjection project(const WaveField& waveField, const WaveField &probeField) override;
         ~PMagnitudeCons();

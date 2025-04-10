@@ -200,6 +200,25 @@ PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, const float *p_measur
     blockSize = 1024;
 }
 
+PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const IntArray &meassize, const std::vector<PropagatorPtr> &props,
+                               const IntArray &imsize, Type projectionType, bool calcError): measurements(measuredGrams), numImages(numimages), 
+                               imSize(imsize), propagators(props), type(projectionType), calculateError(calcError), measSize(meassize), p_measurements(nullptr)
+{
+    if (type != Averaged) {
+        throw std::invalid_argument("Invalid projection computing method!");
+    }
+
+    batchSize = numImages;
+    calculate = &PMagnitudeCons::projBIPAveraged;
+
+    cudaMalloc(&complexWave, sizeof(cuFloatComplex) * imSize[0] * imSize[1]);
+    cudaMalloc(&cmp3DWave, sizeof(cuFloatComplex) * imSize[0] * imSize[1] * batchSize);
+    cudaMalloc(&amp3DWave, sizeof(float) * imSize[0] * imSize[1] * batchSize);
+
+    blockSize = 1024;
+    numBlocks = (imSize[0] * imSize[1] * batchSize + blockSize - 1) / blockSize;
+}
+
 // Project step: propagate wavefield and constrain amplitude
 void PMagnitudeCons::projectStep(const float *measuredGrams, const PropagatorPtr &prop)
 {
@@ -215,6 +234,24 @@ void PMagnitudeCons::projectStep(const float *measuredGrams, const PropagatorPtr
 
     limitAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, amp3DWave, measuredGrams, imSize[0] * imSize[1] * batchSize);
     prop->backPropagate(cmp3DWave, complexWave);
+}
+
+void PMagnitudeCons::projBIPAveraged()
+{
+    int start_row = (imSize[0] - measSize[0]) / 2;
+    int start_col = (imSize[1] - measSize[1]) / 2;
+
+    propagators[0]->propagate(complexWave, cmp3DWave);
+    
+    computeAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, amp3DWave, imSize[0] * imSize[1] * batchSize);
+    residual = FloatInf;
+    CUDAUtils::copyBatchMatrix(amp3DWave, measurements, imSize[0], imSize[1], measSize[0], measSize[1],
+                               batchSize, start_row, start_col);
+    setAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, amp3DWave, imSize[0] * imSize[1] * batchSize);
+    
+    propagators[0]->backPropagate(cmp3DWave, complexWave);
+    int gridSize = (imSize[0] * imSize[1] + blockSize - 1) / blockSize;
+    scaleComplexData<<<gridSize, blockSize>>>(complexWave, imSize[0] * imSize[1], 1.0f / batchSize);
 }
 
 void PMagnitudeCons::projProbeAveraged()

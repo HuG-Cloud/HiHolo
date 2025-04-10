@@ -47,6 +47,7 @@ namespace IOUtils
     bool createFileDataset(const std::string &filename, const std::string &datasetName, const std::vector<hsize_t> &dims);
     bool write3DimData(const std::string &filename, const std::string &datasetName, const FArray &data, const std::vector<hsize_t> &dims, hsize_t offset);
     bool write4DimData(const std::string &filename, const std::string &datasetName, const FArray &data, const std::vector<hsize_t> &dims, hsize_t offset);
+    bool saveImage(const std::string &filename, const FArray &image, int rows, int cols);
 }
 
 #endif

@@ -57,11 +57,12 @@ namespace CUDAUtils
     void padByFadeout(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, cudaStream_t stream = 0);
     // Pad matrix to given size in different ways
     void padMatrix(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, PaddingType type, float padValue = 0.0f, cudaStream_t stream = 0);
+    void copyBatchMatrix(float* l_data, const float* s_data, int l_rows, int l_cols, int s_rows, int s_cols, int batchSize, int start_row, int start_col);
 
     // Generate regularization weights for CTF phase retrieval in Fourier space
     void ctfRegWeights(float *regWeights, const IntArray &imSize, const FArray &fresnelNumber, float lowFreqLim, float highFreqLim);
 
-    float* padInputData(float* inputData, const IntArray& imSize, const IntArray& newSize, const IntArray& padSize, PaddingType padType, float padValue = 0.0f); 
+    float* padInputData(float* inputData, const IntArray& imSize, const IntArray& padSize, PaddingType padType, float padValue = 0.0f); 
     float computeL2Norm(const cuFloatComplex* cmplxData1, const cuFloatComplex* cmplxData2, int numel);
     float computeL2Norm(const float* data1, const float* data2, int numel);
     void ctf_recons_kernel(const float *holograms, float *result, const IntArray &imSize, int numImages, const F2DArray &fresnelNumbers,
@@ -93,8 +94,9 @@ __global__ void genChirpKernel(cuFloatComplex *kernel, cuFloatComplex *rowCompon
 __global__ void propProcess(cuFloatComplex *propagatedWave, cuFloatComplex *complexWave, cuFloatComplex *kernel, int numel, int batchSize);
 __global__ void backPropProcess(cuFloatComplex *complexWave, cuFloatComplex *propagatedWave, cuFloatComplex *kernel, int numel, int batchSize);
 
-__global__ void computeAmplitude(cuFloatComplex *complexWave, float *amplitude, int numel);
-__global__ void computePhase(cuFloatComplex *complexWave, float *phase, int numel);
+__global__ void computeComplexData(cuFloatComplex *complexData, const float *amplitude, const float *phase, int numel);
+__global__ void computeAmplitude(const cuFloatComplex *complexWave, float *amplitude, int numel);
+__global__ void computePhase(const cuFloatComplex *complexWave, float *phase, int numel);
 __global__ void setAmplitude(cuFloatComplex *complexWave, const float *targetAmplitude, int numel);
 __global__ void setPhase(cuFloatComplex *complexWave, const float *targetPhase, int numel);
 

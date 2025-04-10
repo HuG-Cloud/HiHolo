@@ -44,13 +44,21 @@ int main(int argc, char* argv[])
            .help("hdf5 file and dataset of initial phase guess")
            .nargs(2);
 
-    program.add_argument("--padding_size", "-s")
+    program.add_argument("--padding_size", "-S")
            .help("size to pad on holograms")
            .nargs(2).scan<'i', int>();
 
     program.add_argument("--phase_limits", "-pl")
            .help("minimum and maximum phase constraints")
            .nargs(2).scan<'g', float>();
+    
+    program.add_argument("--support_size", "-s")
+           .help("size of support")
+           .nargs(2).scan<'i', int>();
+
+    program.add_argument("--support_outside_value", "-sv")
+           .help("value outside support constraint region")
+           .default_value(1.0f).scan<'g', float>();
     
     program.add_argument("--amplitude_limits", "-al")
            .help("minimum and maximum amplitude constraints")
@@ -122,9 +130,8 @@ int main(int argc, char* argv[])
 
     IntArray padSize;
     CUDAUtils::PaddingType padType;
-
-    if (program.is_used("-s")) {
-        padSize = program.get<IntArray>("-s");
+    if (program.is_used("-S")) {
+        padSize = program.get<IntArray>("-S");
         padType = static_cast<CUDAUtils::PaddingType>(program.get<int>("-p"));
     }
 
@@ -138,8 +145,12 @@ int main(int argc, char* argv[])
        phaseLimits = program.get<FArray>("-pl");
     }
 
-    FArray support;
-    float outsideValue = 1.0f;
+    IntArray support;
+    float outsideValue;
+    if (program.is_used("-s")) {
+       support = program.get<IntArray>("-s");
+       outsideValue = program.get<float>("-sv");
+    }
 
     auto projectionType = static_cast<PMagnitudeCons::Type>(program.get<int>("-t"));
     auto kernelMethod = static_cast<CUDAPropKernel::Type>(program.get<int>("-m"));
@@ -148,9 +159,10 @@ int main(int argc, char* argv[])
     std::vector<hsize_t> outputDims = {dims[0], dims[2], dims[3]};
     IOUtils::createFileDataset(outputs[0], outputs[1], outputDims);
     
-    auto reconstructor = PhaseRetrieval::Reconstructor(batchSize, numHolograms, imSize, fresnelNumbers, iterations, algorithm,
-                                                       parameters, padSize, phaseLimits[0], phaseLimits[1], ampLimits[0], ampLimits[1],
-                                                       support, outsideValue, projectionType, kernelMethod, padType);
+    auto reconstructor = PhaseRetrieval::Reconstructor(batchSize, numHolograms, imSize, fresnelNumbers, iterations,
+                                                       algorithm, parameters, padSize, phaseLimits[0], phaseLimits[1],
+                                                       ampLimits[0], ampLimits[1], support, outsideValue, projectionType,
+                                                       kernelMethod, padType);
 
     auto start = std::chrono::high_resolution_clock::now();
 

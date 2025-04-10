@@ -900,3 +900,23 @@ bool IOUtils::write4DimData(const std::string &filename, const std::string &data
 
     return true;
 }
+
+bool IOUtils::saveImage(const std::string &filename, const FArray &image, int rows, int cols)
+{
+    // 创建OpenCV矩阵
+    cv::Mat mat(rows, cols, CV_32F);
+    memcpy(mat.data, image.data(), rows * cols * sizeof(float));
+    
+    // 归一化到0-255范围并转换为8位无符号整数
+    cv::normalize(mat, mat, 0, 255, cv::NORM_MINMAX);
+    mat.convertTo(mat, CV_8U);
+    
+    // 保存为jpg格式图片
+    bool success = cv::imwrite(filename, mat);
+    if (!success) {
+        std::cerr << "保存图片失败: " << filename << std::endl;
+        return false;
+    }
+    
+    return true;
+}

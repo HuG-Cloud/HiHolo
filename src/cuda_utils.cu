@@ -64,7 +64,15 @@ __global__ void scaleFloatData(float *data, int numel, float scale)
     }
 }
 
-__global__ void computeAmplitude(cuFloatComplex *complexWave, float *amplitude, int numel)
+__global__ void computeComplexData(cuFloatComplex *complexData, const float *amplitude, const float *phase, int numel)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numel) {
+        complexData[idx] = make_cuFloatComplex(amplitude[idx] * cosf(phase[idx]), amplitude[idx] * sinf(phase[idx]));
+    }
+}
+
+__global__ void computeAmplitude(const cuFloatComplex *complexWave, float *amplitude, int numel)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < numel) {
@@ -72,7 +80,7 @@ __global__ void computeAmplitude(cuFloatComplex *complexWave, float *amplitude, 
     }
 }
 
-__global__ void computePhase(cuFloatComplex *complexWave, float *phase, int numel)
+__global__ void computePhase(const cuFloatComplex *complexWave, float *phase, int numel)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < numel) {
@@ -632,7 +640,8 @@ void CUDAUtils::padByConstant(float* matrix, float* matrix_new, int rows, int co
     NppStreamContext streamCtx;
     streamCtx.hStream = stream;
 
-    nppiCopyConstBorder_32f_C1R_Ctx(reinterpret_cast<const Npp32f*>(matrix), srcStep, srcSize, reinterpret_cast<Npp32f*>(matrix_new), dstStep, dstSize, padRows, padCols, padValue, streamCtx);
+    nppiCopyConstBorder_32f_C1R_Ctx(reinterpret_cast<const Npp32f*>(matrix), srcStep, srcSize, reinterpret_cast<Npp32f*>(matrix_new),
+                                    dstStep, dstSize, padRows, padCols, padValue, streamCtx);
 }
 
 void CUDAUtils::padByReplicate(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, cudaStream_t stream)
@@ -649,7 +658,8 @@ void CUDAUtils::padByReplicate(float* matrix, float* matrix_new, int rows, int c
     streamCtx.hStream = stream;
 
     // Copy the original matrix to the center of the new matrix
-    nppiCopyReplicateBorder_32f_C1R_Ctx(reinterpret_cast<const Npp32f*>(matrix), srcStep, srcSize, reinterpret_cast<Npp32f*>(matrix_new), dstStep, dstSize, padRows, padCols, streamCtx);
+    nppiCopyReplicateBorder_32f_C1R_Ctx(reinterpret_cast<const Npp32f*>(matrix), srcStep, srcSize,
+                                        reinterpret_cast<Npp32f*>(matrix_new), dstStep, dstSize, padRows, padCols, streamCtx);
 }
 
 void CUDAUtils::padByFadeout(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, cudaStream_t stream)
@@ -724,13 +734,26 @@ void CUDAUtils::padMatrix(float* matrix, float* matrix_new, int rows, int cols, 
     }
 }
 
-float* CUDAUtils::padInputData(float* inputData, const IntArray& imSize, const IntArray& newSize, const IntArray& padSize, PaddingType padType, float padValue)
+void CUDAUtils::copyBatchMatrix(float* l_data, const float* s_data, int l_rows, int l_cols, int s_rows, int s_cols, int batchSize, int start_row, int start_col)
+{
+    for (int i = 0; i < batchSize; i++) {
+        int l_offset = i * l_rows * l_cols + start_row * l_cols + start_col;
+        int s_offset = i * s_rows * s_cols;
+
+        cudaMemcpy2D(reinterpret_cast<void*>(l_data + l_offset), l_cols * sizeof(float), 
+                     reinterpret_cast<void*>(const_cast<float*>(s_data) + s_offset), s_cols * sizeof(float),
+                     s_cols * sizeof(float), s_rows, cudaMemcpyDeviceToDevice);
+    }
+}
+
+float* CUDAUtils::padInputData(float* inputData, const IntArray& imSize, const IntArray& padSize, PaddingType padType, float padValue)
 {
     if (padSize.empty()) {
         return inputData; // Un-padded case, return original data
     }
-        
+    
     float* paddedData;
+    IntArray newSize {imSize[0] + 2 * padSize[0], imSize[1] + 2 * padSize[1]};
     cudaMalloc((void**)&paddedData, newSize[0] * newSize[1] * sizeof(float));
     CUDAUtils::padMatrix(inputData, paddedData, imSize[0], imSize[1], padSize[0], padSize[1], padType, padValue);
         

@@ -10,7 +10,9 @@ ProjectionSolver::ProjectionSolver(Projector *PM, Projector *PS, const WaveField
 {    
     // Map holographic algorithm to corresponding update method
     std::unordered_map<Algorithm, Method> methodMap {{AP, &ProjectionSolver::updateStepAP}, {RAAR, &ProjectionSolver::updateStepRAAR}, 
-                                                     {HIO, &ProjectionSolver::updateStepHIO}, {DRAP, &ProjectionSolver::updateStepDRAP}};
+                                                     {HIO, &ProjectionSolver::updateStepHIO}, {DRAP, &ProjectionSolver::updateStepDRAP},
+                                                     {BIPEPI, &ProjectionSolver::updateStepAP}};
+                                                     
     auto iterator = methodMap.find(algorithm);
     if (iterator != methodMap.end()) {
         update = iterator->second;
@@ -87,7 +89,13 @@ IterationResult ProjectionSolver::execute(int iterations)
     }
     
     auto magnitudeResult = projMagnitude->project(psi);
-    psi = magnitudeResult.projection;
+    auto objectResult = projObject->project(magnitudeResult.projection);
+    if (algorithm == BIPEPI) {
+        psi = objectResult.projection;
+    } else {
+        psi = magnitudeResult.projection;
+    }
+    
     if (calculateError) {
         setResidual(1, magnitudeResult.residual);
         setResidual(0, CUDAUtils::computeL2Norm(psi.getComplexWave(), oldPsi.getComplexWave(), psi.getSize()));

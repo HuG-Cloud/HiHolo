@@ -227,7 +227,7 @@ namespace PhaseRetrieval
 
     F2DArray reconstruct_iter(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelNumbers, int iterations, 
                               const FArray &initialPhase, ProjectionSolver::Algorithm algorithm, const FArray &algoParameters, const IntArray &padSize,
-                              float minPhase, float maxPhase, float minAmplitude, float maxAmplitude, const FArray &support, float outsideValue, 
+                              float minPhase, float maxPhase, float minAmplitude, float maxAmplitude, const IntArray &support, float outsideValue, 
                               PMagnitudeCons::Type projectionType, CUDAPropKernel::Type kernelType, CUDAUtils::PaddingType padType, const FArray &holoProbes, 
                               const FArray &initProbePhase, bool calcError)
     {
@@ -253,12 +253,6 @@ namespace PhaseRetrieval
                 throw std::invalid_argument("The number of probes and holograms does not match!");
             cudaMalloc((void**)&holoprobes_gpu, holoProbes.size() * sizeof(float));
             cudaMemcpy(holoprobes_gpu, holoProbes.data(), holoProbes.size() * sizeof(float), cudaMemcpyHostToDevice);
-        }
-
-        float *support_gpu = nullptr;
-        if (!support.empty()) {
-            cudaMalloc((void**)&support_gpu, support.size() * sizeof(float));
-            cudaMemcpy(support_gpu, support.data(), support.size() * sizeof(float), cudaMemcpyHostToDevice);
         }
 
         IntArray newSize(imSize);
@@ -331,9 +325,20 @@ namespace PhaseRetrieval
         }
 
         // Construct projector on constraints of object plane
+        float *support_gpu = nullptr;
         if (!support.empty()) {
-            float *paddedSupport_gpu = CUDAUtils::padInputData(support_gpu, imSize, newSize, padSize, padType);
-            if (paddedSupport_gpu != support_gpu) {
+            if (support[0] > newSize[0] || support[1] > newSize[1]) {
+                throw std::invalid_argument("The support size is larger than the image size!");
+            }
+
+            // Initialize support based on the support size
+            if (!(support[0] == newSize[0] && support[1] == newSize[1])) {
+                cudaMalloc((void**)&support_gpu, support[0] * support[1] * sizeof(float));
+                gridSize = (support[0] * support[1] + blockSize - 1) / blockSize;
+                initializeData<<<gridSize, blockSize>>>(support_gpu, 1.0f, support[0] * support[1]);
+
+                IntArray suppPadSize {(newSize[0] - support[0]) / 2, (newSize[1] - support[1]) / 2};
+                float *paddedSupport_gpu = CUDAUtils::padInputData(support_gpu, support, suppPadSize, CUDAUtils::Constant, 0.0f);
                 cudaFree(support_gpu);
                 support_gpu = paddedSupport_gpu;
             }
@@ -341,7 +346,7 @@ namespace PhaseRetrieval
 
         Projector *pAmplitude = new PAmplitudeCons(minAmplitude, maxAmplitude);
         Projector *pPhase, *pSupport, *PS;
-        bool onlyAmpCons = (minPhase == -FloatInf && maxPhase == FloatInf && support.empty());
+        bool onlyAmpCons = (minPhase == -FloatInf && maxPhase == FloatInf && support_gpu == nullptr);
         if (onlyAmpCons) {
             PS = pAmplitude;
         } else {
@@ -368,7 +373,7 @@ namespace PhaseRetrieval
             cudaMemcpy(initPhase_gpu, initialPhase.data(), initialPhase.size() * sizeof(float), cudaMemcpyHostToDevice);
 
             // Pad initial phase if needed
-            float *paddedInitPhase_gpu = CUDAUtils::padInputData(initPhase_gpu, imSize, newSize, padSize, padType);
+            float *paddedInitPhase_gpu = CUDAUtils::padInputData(initPhase_gpu, imSize, padSize, padType);
             if (paddedInitPhase_gpu != initPhase_gpu) {
                 cudaFree(initPhase_gpu);
             }
@@ -394,7 +399,7 @@ namespace PhaseRetrieval
                 cudaMemcpy(initProbePhase_gpu, initProbePhase.data(), initProbePhase.size() * sizeof(float), cudaMemcpyHostToDevice);
 
                 // Pad probe phase if needed
-                float *paddedProbePhase_gpu = CUDAUtils::padInputData(initProbePhase_gpu, imSize, newSize, padSize, padType);
+                float *paddedProbePhase_gpu = CUDAUtils::padInputData(initProbePhase_gpu, imSize, padSize, padType);
                 if (paddedProbePhase_gpu != initProbePhase_gpu) {
                     cudaFree(initProbePhase_gpu);
                 }
@@ -471,9 +476,124 @@ namespace PhaseRetrieval
         }
         cudaFree(phase); cudaFree(amplitude); cudaFree(complexWave); cudaFree(holograms_gpu);
         if (isAPWP) {
-            cudaFree(holoprobes_gpu); cudaFree(probe); cudaFree(probePhase);
+             cudaFree(probePhase); cudaFree(probe); cudaFree(holoprobes_gpu);
         }
-        if (!support.empty())
+        if (support_gpu)
+            cudaFree(support_gpu);
+
+        return result;
+    }
+
+    F2DArray reconstruct_bipepi(const FArray &holograms, int numImages, const IntArray &measSize, const F2DArray &fresnelNumbers, int iterations,
+                                const IntArray &imSize, const FArray &initialPhase, const FArray &initialAmplitude, float minPhase, float maxPhase,
+                                float minAmplitude, float maxAmplitude, const IntArray &support, float outsideValue, PMagnitudeCons::Type projectionType,
+                                CUDAPropKernel::Type kernelType, bool calcError)
+    {
+        // Add GPU environment check
+        int deviceCount;
+        cudaError_t error = cudaGetDeviceCount(&deviceCount);
+        if (error != cudaSuccess || deviceCount == 0)
+            throw std::runtime_error("No CUDA capable GPU device found!");
+
+        if (fresnelNumbers.size() != numImages)
+            throw std::invalid_argument("The number of images and fresnel numbers does not match!");
+
+        if (support.empty())
+            throw std::invalid_argument("BIPEPI algorithm requires the support size!");
+
+        // Allocate memory for holograms on GPU
+        float *holograms_gpu;
+        cudaMalloc((void**)&holograms_gpu, holograms.size() * sizeof(float));
+        cudaMemcpy(holograms_gpu, holograms.data(), holograms.size() * sizeof(float), cudaMemcpyHostToDevice);
+
+        // Construct projector on measured holograms
+        int blockSize = 1024;
+        int gridSize = (measSize[0] * measSize[1] * numImages + blockSize - 1) / blockSize;
+        sqrtIntensity<<<gridSize, blockSize>>>(holograms_gpu, measSize[0] * measSize[1] * numImages);
+
+        std::vector<PropagatorPtr> propagators;
+        propagators.push_back(std::make_shared<Propagator>(imSize, fresnelNumbers, kernelType));
+        Projector *PM = new PMagnitudeCons(holograms_gpu, numImages, measSize, propagators, imSize, projectionType, calcError);
+
+        // Construct projector on constraints of object plane
+        float *support_gpu = nullptr;
+        if (support[0] > imSize[0] || support[1] > imSize[1]) {
+            throw std::invalid_argument("The support size is larger than the image size!");
+        }
+
+        // Initialize support based on the support size
+        if (!(support[0] == imSize[0] && support[1] == imSize[1])) {
+            cudaMalloc((void**)&support_gpu, support[0] * support[1] * sizeof(float));
+            gridSize = (support[0] * support[1] + blockSize - 1) / blockSize;
+            initializeData<<<gridSize, blockSize>>>(support_gpu, 1.0f, support[0] * support[1]);
+
+            IntArray suppPadSize {(imSize[0] - support[0]) / 2, (imSize[1] - support[1]) / 2};
+            float *paddedSupport_gpu = CUDAUtils::padInputData(support_gpu, support, suppPadSize, CUDAUtils::Constant, 0.0f);
+            cudaFree(support_gpu);
+            support_gpu = paddedSupport_gpu;
+        }
+
+        Projector *pAmplitude = new PAmplitudeCons(minAmplitude, maxAmplitude);
+        Projector *pPhase, *pSupport, *PS;
+        bool onlyAmpCons = (minPhase == -FloatInf && maxPhase == FloatInf && support_gpu == nullptr);
+        if (onlyAmpCons) {
+            PS = pAmplitude;
+        } else {
+            pPhase = new PPhaseCons(minPhase, maxPhase);
+            pSupport = new PSupportCons(support_gpu, imSize[0] * imSize[1], outsideValue);
+            PS = new MultiObjectCons(pPhase, pAmplitude, pSupport);
+        }
+
+        // Initialize wave field from the guess phase
+        cuFloatComplex *complexWave;
+        cudaMalloc((void**)&complexWave, imSize[0] * imSize[1] * sizeof(cuFloatComplex));
+        gridSize = (imSize[0] * imSize[1] + blockSize - 1) / blockSize;
+
+        // Initialize wave field from the guess phase and amplitude
+        if (!initialPhase.empty()) {
+            float *initPhase_gpu, *initAmplitude_gpu;
+            cudaMalloc((void**)&initPhase_gpu, initialPhase.size() * sizeof(float));
+            cudaMalloc((void**)&initAmplitude_gpu, initialAmplitude.size() * sizeof(float));
+            cudaMemcpy(initPhase_gpu, initialPhase.data(), initialPhase.size() * sizeof(float), cudaMemcpyHostToDevice);
+            cudaMemcpy(initAmplitude_gpu, initialAmplitude.data(), initialAmplitude.size() * sizeof(float), cudaMemcpyHostToDevice);
+
+            computeComplexData<<<gridSize, blockSize>>>(complexWave, initAmplitude_gpu, initPhase_gpu, imSize[0] * imSize[1]);
+            cudaFree(initAmplitude_gpu); cudaFree(initPhase_gpu);
+        } else {
+            // Initialize wave field from the zero phase
+            initializeData<<<gridSize, blockSize>>>(complexWave, make_cuFloatComplex(1.0f, 0.0f), imSize[0] * imSize[1]);
+        }
+        WaveField waveField(imSize[0], imSize[1], complexWave);
+
+        ProjectionSolver *projectionSolver = new ProjectionSolver(PM, PS, waveField, ProjectionSolver::BIPEPI, FArray(), calcError);
+        
+        // Reconstruct wave field by iterative projection algorithm
+        auto iterResult = projectionSolver->execute(iterations);
+        iterResult.reconsPsi.getComplexWave(complexWave);
+
+        // Calculate phase and amplitude from reconstructed wave field
+        WaveField reconsPsi(imSize[0], imSize[1], complexWave);
+        float *phase, *amplitude;
+        cudaMalloc((void**)&phase, imSize[0] * imSize[1] * sizeof(float));
+        cudaMalloc((void**)&amplitude, imSize[0] * imSize[1] * sizeof(float));
+        reconsPsi.getPhase(phase);
+        reconsPsi.getAmplitude(amplitude);
+
+        F2DArray result(3, FArray(imSize[0] * imSize[1]));
+        cudaMemcpy(result[0].data(), phase, imSize[0] * imSize[1] * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(result[1].data(), amplitude, imSize[0] * imSize[1] * sizeof(float), cudaMemcpyDeviceToHost);
+
+        if (calcError) {
+            result.push_back(iterResult.finalError[0]);
+            result.push_back(iterResult.finalError[1]);
+        }
+        
+        delete projectionSolver; delete PM; delete PS;
+        if (!onlyAmpCons) {
+            delete pPhase; delete pSupport; delete pAmplitude;
+        }
+        cudaFree(phase); cudaFree(amplitude); cudaFree(complexWave); cudaFree(holograms_gpu);
+        if (support_gpu)
             cudaFree(support_gpu);
 
         return result;
@@ -481,7 +601,7 @@ namespace PhaseRetrieval
 
     Reconstructor::Reconstructor(int batchsize, int images, const IntArray &imsize, const F2DArray &fresnelNumbers, int iter, ProjectionSolver::Algorithm algo,
                                  const FArray &algoParams, const IntArray &padsize, float minPhase, float maxPhase, float minAmplitude, float maxAmplitude, 
-                                 const FArray &support, float outsideValue, PMagnitudeCons::Type projType, CUDAPropKernel::Type kernelType, CUDAUtils::PaddingType padtype): 
+                                 const IntArray &support, float outsideValue, PMagnitudeCons::Type projType, CUDAPropKernel::Type kernelType, CUDAUtils::PaddingType padtype): 
                                  batchSize(batchsize), numImages(images), imSize(imsize), newSize(imsize), iteration(iter), algorithm(algo), algoParameters(algoParams),
                                  padSize(padsize), projectionType(projType), padType(padtype), d_support(nullptr)
     {
@@ -489,6 +609,7 @@ namespace PhaseRetrieval
             newSize[0] += 2 * padSize[0];
             newSize[1] += 2 * padSize[1];
             cudaMalloc((void**)&d_paddedHolograms, newSize[0] * newSize[1] * numImages * sizeof(float));
+            cudaMalloc((void**)&d_paddedInitPhase, newSize[0] * newSize[1] * sizeof(float));
             cudaMalloc((void**)&d_croppedPhase, imSize[0] * imSize[1] * sizeof(float));
             streams = new cudaStream_t[numImages];
             for (int i = 0; i < numImages; i++) {
@@ -511,14 +632,27 @@ namespace PhaseRetrieval
             }
         }
 
+        // Construct projector on constraints of object plane
         if (!support.empty()) {
-            cudaMalloc((void**)&d_support, support.size() * sizeof(float));
-            cudaMemcpy(d_support, support.data(), support.size() * sizeof(float), cudaMemcpyHostToDevice);
+            if (support[0] > newSize[0] || support[1] > newSize[1]) {
+                throw std::invalid_argument("The support size is larger than the image size!");
+            }
+
+            if (!(support[0] == newSize[0] && support[1] == newSize[1])) {
+                cudaMalloc((void**)&d_support, support[0] * support[1] * sizeof(float));
+                int blockSize = 1024;
+                int gridSize = (support[0] * support[1] + blockSize - 1) / blockSize;
+                initializeData<<<gridSize, blockSize>>>(d_support, 1.0f, support[0] * support[1]);
+
+                IntArray suppPadSize {(newSize[0] - support[0]) / 2, (newSize[1] - support[1]) / 2};
+                float *paddedSupport_gpu = CUDAUtils::padInputData(d_support, support, suppPadSize, CUDAUtils::Constant, 0.0f);
+                cudaFree(d_support);
+                d_support = paddedSupport_gpu;
+            }
         }
 
-        // Construct projector on constraints of object plane
         pAmplitude = new PAmplitudeCons(minAmplitude, maxAmplitude);
-        onlyAmpCons = (minPhase == -FloatInf && maxPhase == FloatInf && support.empty());
+        onlyAmpCons = (minPhase == -FloatInf && maxPhase == FloatInf && d_support == nullptr);
         if (onlyAmpCons) {
             PS = pAmplitude;
         } else {
@@ -566,11 +700,14 @@ namespace PhaseRetrieval
             
             numBlocks = (newSize[0] * newSize[1] + blockSize - 1) / blockSize;
             if (!initialPhase.empty()) {
-                float *d_paddedInitPhase = CUDAUtils::padInputData(d_initPhase + i * imSize[0] * imSize[1], imSize, newSize, padSize, padType);
-                initByPhase<<<numBlocks, blockSize>>>(complexWave, d_paddedInitPhase, newSize[0] * newSize[1]);
-                if (d_paddedInitPhase != d_initPhase + i * imSize[0] * imSize[1]) {
-                    cudaFree(d_paddedInitPhase);
+                if (!padSize.empty()) {
+                    CUDAUtils::padMatrix(d_initPhase + i * imSize[0] * imSize[1], d_paddedInitPhase,
+                                         imSize[0], imSize[1], padSize[0], padSize[1], padType);
+                    d_temp = d_paddedInitPhase;
+                } else {
+                    d_temp = d_initPhase + i * imSize[0] * imSize[1];
                 }
+                initByPhase<<<numBlocks, blockSize>>>(complexWave, d_temp, newSize[0] * newSize[1]);
             } else {
                 initializeData<<<numBlocks, blockSize>>>(complexWave, make_cuFloatComplex(1.0f, 0.0f), newSize[0] * newSize[1]);
             }
@@ -604,6 +741,7 @@ namespace PhaseRetrieval
 
         if (!padSize.empty()) {
             cudaFree(d_paddedHolograms);
+            cudaFree(d_paddedInitPhase);
             cudaFree(d_croppedPhase);
             for (int i = 0; i < numImages; i++) {
                 cudaStreamDestroy(streams[i]);

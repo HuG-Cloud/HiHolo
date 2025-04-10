@@ -16,6 +16,10 @@ int main(int argc, char* argv[])
            .help("input hdf5 file and dataset for holograms")
            .required().nargs(2);
 
+    program.add_argument("--output_file", "-O")
+           .help("output hdf5 file and dataset for phase")
+           .required().nargs(2);
+
     program.add_argument("--fresnel_numbers", "-f")
            .help("list of fresnel numbers corresponding to holograms")
            .required().nargs(argparse::nargs_pattern::at_least_one)
@@ -25,12 +29,12 @@ int main(int argc, char* argv[])
            .help("the number of iterations")
            .required().scan<'i', int>().default_value(200);
 
-    program.add_argument("--guess_phase_file", "-g")
+    program.add_argument("--guess_phase_file", "-G")
            .help("hdf5 file and dataset of initial guess phase")
            .nargs(2);
 
     program.add_argument("--algorithm", "-a")
-           .help("phase retrieval algorithm [0:ap, 1:raar, 2:hio, 3:drap, 4:apwp]")
+           .help("phase retrieval algorithm [0:ap, 1:raar, 2:hio, 3:drap, 4:apwp, 5:bipepi]")
            .required().default_value(0).scan<'i', int>();
 
     program.add_argument("--plot_interval", "-pi")
@@ -50,7 +54,15 @@ int main(int argc, char* argv[])
            .help("minimum and maximum phase constraints")
            .nargs(2).scan<'g', float>();
 
-    program.add_argument("--padding_size", "-s")
+    program.add_argument("--support_size", "-s")
+           .help("size of support constraint region")
+           .nargs(2).scan<'i', int>();
+
+    program.add_argument("--support_outside_value", "-sv")
+           .help("value outside support constraint region")
+           .default_value(0.0f).scan<'g', float>();
+
+    program.add_argument("--padding_size", "-S")
            .help("size to pad on holograms")
            .nargs(2).scan<'i', int>();
 
@@ -58,7 +70,7 @@ int main(int argc, char* argv[])
            .help("input hdf5 file and dataset for probes")
            .nargs(2);
 
-    program.add_argument("--guess_probe_phase", "-gp")
+    program.add_argument("--guess_probe_phase", "-g")
            .help("hdf5 file and dataset of initial guess phase for probe")
            .nargs(2);
 
@@ -111,10 +123,10 @@ int main(int argc, char* argv[])
     auto plotInterval = program.get<int>("-pi");
 
     // Read initial phase and image size from user inputs
-    FArray initialPhase;
+    FArray initialPhase, initialAmplitude;
     std::vector<std::string> input_phase;
-    if (program.is_used("-g")) {
-       input_phase = program.get<std::vector<std::string>>("-g");
+    if (program.is_used("-G")) {
+       input_phase = program.get<std::vector<std::string>>("-G");
        IOUtils::readPhasegrams(input_phase[0], input_phase[1], initialPhase, dims);
        if (initialPhase.empty()) {
             throw std::runtime_error("Invalid initial phase or dimensions!");
@@ -130,6 +142,7 @@ int main(int argc, char* argv[])
        case ProjectionSolver::HIO: std::cout << "HIO"; break;
        case ProjectionSolver::DRAP: std::cout << "DRAP"; break;
        case ProjectionSolver::APWP: std::cout << "AP with Probe"; break;
+       case ProjectionSolver::BIPEPI: std::cout << "BIPEPI"; break;
        default: std::cout << "Unknown"; break;
     }
     std::cout << std::endl;
@@ -155,14 +168,18 @@ int main(int argc, char* argv[])
        phaLimits = program.get<FArray>("-pl");
     }
 
-    FArray support;
-    float outsideValue = 1.0f;
+    IntArray support;
+    float outsideValue;
+    if (program.is_used("-s")) {
+       support = program.get<IntArray>("-s");
+       outsideValue = program.get<float>("-sv");
+    }
 
     // Process padding parameters
     IntArray padSize;
     CUDAUtils::PaddingType padType;
-    if (program.is_used("-s")) {
-        padSize = program.get<IntArray>("-s");
+    if (program.is_used("-S")) {
+        padSize = program.get<IntArray>("-S");
         padType = static_cast<CUDAUtils::PaddingType>(program.get<int>("-p"));
     }
 
@@ -179,8 +196,8 @@ int main(int argc, char* argv[])
            throw std::runtime_error("Invalid probe grams or dimensions!");
        }
 
-       if (program.is_used("-gp")) {
-           input_phase = program.get<std::vector<std::string>>("-gp");
+       if (program.is_used("-g")) {
+           input_phase = program.get<std::vector<std::string>>("-g");
            IOUtils::readPhasegrams(input_phase[0], input_phase[1], initProbePhase, dims);
            if (initProbePhase.empty()) {
                 throw std::runtime_error("Invalid initial probe phase or dimensions!");
@@ -188,7 +205,7 @@ int main(int argc, char* argv[])
        }
     }
 
-    // Get and print projection method    
+    // Get and print projection method 
     auto projectionType = static_cast<PMagnitudeCons::Type>(program.get<int>("-t"));
     std::cout << "Choosing projection method: ";
     switch (projectionType) {
@@ -210,6 +227,16 @@ int main(int argc, char* argv[])
     }
     std::cout << std::endl;
 
+    IntArray newSize;
+    if (algorithm == ProjectionSolver::BIPEPI) {
+       if (padSize.empty()) {
+           throw std::runtime_error("Padding size is required for Bipepi algorithm!");
+       }
+       newSize = {rows + 2 * padSize[0], cols + 2 * padSize[1]};
+    }
+
+    std::vector<std::string> outputs = program.get<std::vector<std::string>>("-O");
+
     F2DArray result, residuals;
     bool calcError = program.get<bool>("-e");
     if (calcError) {
@@ -218,28 +245,48 @@ int main(int argc, char* argv[])
     
     auto start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations / plotInterval; ++i) {
-        result = PhaseRetrieval::reconstruct_iter(holograms, numHolograms, imSize, fresnelNumbers, plotInterval, initialPhase,
-                                                  algorithm, parameters, padSize, phaLimits[0], phaLimits[1], ampLimits[0], 
-                                                  ampLimits[1], support, outsideValue, projectionType, kernelMethod, padType,
-                                                  probeGrams, initProbePhase, calcError);
-    
-        initialPhase = result[0];
-        if (algorithm == ProjectionSolver::APWP) {
-            initProbePhase = result[2];
-        }
+       if (algorithm == ProjectionSolver::BIPEPI) {
+           result = PhaseRetrieval::reconstruct_bipepi(holograms, numHolograms, imSize, fresnelNumbers, plotInterval, newSize,
+                                                       initialPhase, initialAmplitude, phaLimits[0], phaLimits[1], ampLimits[0], 
+                                                       ampLimits[1], support, outsideValue, projectionType, kernelMethod, calcError);
 
-        if (calcError) {
-            std::copy(result[3].begin(), result[3].end(), residuals[0].begin() + i * plotInterval);
-            std::copy(result[4].begin(), result[4].end(), residuals[1].begin() + i * plotInterval);
-        }
+           initialPhase = result[0];
+           initialAmplitude = result[1];
+           if (calcError) {
+              std::copy(result[3].begin(), result[3].end(), residuals[0].begin() + i * plotInterval);
+              std::copy(result[4].begin(), result[4].end(), residuals[1].begin() + i * plotInterval);
+           }
 
-        ImageUtils::displayPhase(result[0], imSize[0], imSize[1], "phase reconstructed by " + \
-                                 std::to_string((i + 1) * plotInterval) + " iterations");
+           ImageUtils::displayPhase(result[0], newSize[0], newSize[1], "phase reconstructed by " + \
+                                    std::to_string((i + 1) * plotInterval) + " iterations");
+       } else {
+           result = PhaseRetrieval::reconstruct_iter(holograms, numHolograms, imSize, fresnelNumbers, plotInterval, initialPhase,
+                                                     algorithm, parameters, padSize, phaLimits[0], phaLimits[1], ampLimits[0], 
+                                                     ampLimits[1], support, outsideValue, projectionType, kernelMethod, padType,
+                                                     probeGrams, initProbePhase, calcError);
+       
+           initialPhase = result[0];
+           if (algorithm == ProjectionSolver::APWP) {
+              initProbePhase = result[2];
+           }
+
+           if (calcError) {
+              std::copy(result[3].begin(), result[3].end(), residuals[0].begin() + i * plotInterval);
+              std::copy(result[4].begin(), result[4].end(), residuals[1].begin() + i * plotInterval);
+           }
+
+           ImageUtils::displayPhase(result[0], imSize[0], imSize[1], "phase reconstructed by " + \
+                                    std::to_string((i + 1) * plotInterval) + " iterations");
+       }
     }
-
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Time taken: " << duration.count() << " milliseconds" << std::endl;
+
+    if (algorithm == ProjectionSolver::BIPEPI) {
+       imSize = newSize;
+    }
+    IOUtils::savePhasegrams(outputs[0], outputs[1], result[0], imSize[0], imSize[1]);
 
     return 0;
 }

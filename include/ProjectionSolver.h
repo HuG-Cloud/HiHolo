@@ -17,7 +17,7 @@ struct IterationResult
 class ProjectionSolver
 {   
     public:
-        enum Algorithm {AP, RAAR, HIO, DRAP, APWP};
+        enum Algorithm {AP, RAAR, HIO, DRAP, APWP, BIPEPI};
         typedef std::function<void(ProjectionSolver*)> Method;
 
     private:
