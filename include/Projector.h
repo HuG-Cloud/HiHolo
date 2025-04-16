@@ -121,6 +121,7 @@ class PMagnitudeCons: public Projector
         cuFloatComplex *probeWave;
         cuFloatComplex *probe;
         float *amp3DWave;
+        float *croppedAmp;
         float residual;
 
         // choose function according to different projection methods

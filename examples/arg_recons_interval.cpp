@@ -66,6 +66,14 @@ int main(int argc, char* argv[])
            .help("size to pad on holograms")
            .nargs(2).scan<'i', int>();
 
+    program.add_argument("--padding_type", "-p")
+           .help("type of padding matrix around [0:constant, 1:replicate, 2:fadeout]")
+           .default_value(1).scan<'i', int>();
+
+    program.add_argument("--padding_value", "-V")
+           .help("value to pad on holograms and initial phase")
+           .default_value(0.0f).scan<'g', float>();
+
     program.add_argument("--input_probe_file", "-ip")
            .help("input hdf5 file and dataset for probes")
            .nargs(2);
@@ -85,10 +93,6 @@ int main(int argc, char* argv[])
     program.add_argument("--error_calculation", "-e")
            .help("whether to calculate iteration error")
            .default_value(false).implicit_value(true);
-
-    program.add_argument("--padding_type", "-p")
-           .help("type of padding matrix around [0:constant, 1:replicate, 2:fadeout]")
-           .default_value(1).scan<'i', int>();
 
     try {
         program.parse_args(argc, argv);
@@ -178,9 +182,11 @@ int main(int argc, char* argv[])
     // Process padding parameters
     IntArray padSize;
     CUDAUtils::PaddingType padType;
+    float padValue;
     if (program.is_used("-S")) {
         padSize = program.get<IntArray>("-S");
         padType = static_cast<CUDAUtils::PaddingType>(program.get<int>("-p"));
+        padValue = program.get<float>("-V");
     }
 
     // Process probe field parameters
@@ -235,15 +241,14 @@ int main(int argc, char* argv[])
        newSize = {rows + 2 * padSize[0], cols + 2 * padSize[1]};
     }
 
-    std::vector<std::string> outputs = program.get<std::vector<std::string>>("-O");
-
     F2DArray result, residuals;
     bool calcError = program.get<bool>("-e");
     if (calcError) {
         residuals = F2DArray(2, FArray(iterations));
     }
     
-    auto start = std::chrono::high_resolution_clock::now();
+//     auto start = std::chrono::high_resolution_clock::now();
+    
     for (int i = 0; i < iterations / plotInterval; ++i) {
        if (algorithm == ProjectionSolver::BIPEPI) {
            result = PhaseRetrieval::reconstruct_bipepi(holograms, numHolograms, imSize, fresnelNumbers, plotInterval, newSize,
@@ -261,8 +266,8 @@ int main(int argc, char* argv[])
                                     std::to_string((i + 1) * plotInterval) + " iterations");
        } else {
            result = PhaseRetrieval::reconstruct_iter(holograms, numHolograms, imSize, fresnelNumbers, plotInterval, initialPhase,
-                                                     algorithm, parameters, padSize, phaLimits[0], phaLimits[1], ampLimits[0], 
-                                                     ampLimits[1], support, outsideValue, projectionType, kernelMethod, padType,
+                                                     algorithm, parameters, phaLimits[0], phaLimits[1], ampLimits[0], ampLimits[1],
+                                                     support, outsideValue,  padSize, padType, padValue, projectionType, kernelMethod,
                                                      probeGrams, initProbePhase, calcError);
        
            initialPhase = result[0];
@@ -279,13 +284,25 @@ int main(int argc, char* argv[])
                                     std::to_string((i + 1) * plotInterval) + " iterations");
        }
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::cout << "Time taken: " << duration.count() << " milliseconds" << std::endl;
+    
+//     auto end = std::chrono::high_resolution_clock::now();
+//     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+//     std::cout << "Time taken: " << duration.count() << " milliseconds" << std::endl;
+//     std::cout << std::endl << "Step Error: ";
+//     for (float residual: residuals[0]) {
+//         std::cout << residual << " ";
+//     }
+//     std::cout << std::endl << std::endl << "PM Error: ";
+//     for (float residual: residuals[1]) {
+//         std::cout << residual << " ";
+//     }
+//     std::cout << std::endl;
 
     if (algorithm == ProjectionSolver::BIPEPI) {
        imSize = newSize;
     }
+
+    std::vector<std::string> outputs = program.get<std::vector<std::string>>("-O");
     IOUtils::savePhasegrams(outputs[0], outputs[1], result[0], imSize[0], imSize[1]);
 
     return 0;

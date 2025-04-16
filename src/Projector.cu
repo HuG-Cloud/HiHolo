@@ -154,8 +154,8 @@ ProbeProjection MultiObjectCons::project(const WaveField& psi, const WaveField &
 int PMagnitudeCons::currentIteration = 0;
 
 PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const IntArray &imsize, const std::vector<PropagatorPtr> &props,
-                       Type projectionType, bool calcError): measurements(measuredGrams), numImages(numimages), imSize(imsize), propagators(props), 
-                       type(projectionType), calculateError(calcError), p_measurements(nullptr)
+                               Type projectionType, bool calcError): measurements(measuredGrams), numImages(numimages), imSize(imsize),
+                               propagators(props), type(projectionType), calculateError(calcError), p_measurements(nullptr), croppedAmp(nullptr)
 {   
     // Check projection type and set batch size
     if (type == Averaged) {
@@ -181,8 +181,9 @@ PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const 
 }
 
 PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, const float *p_measuredGrams, int numimages, const IntArray &imsize, 
-                               const std::vector<PropagatorPtr> &props, Type projectionType, bool calcError): measurements(measuredGrams), imSize(imsize), 
-                               p_measurements(p_measuredGrams), numImages(numimages), propagators(props), type(projectionType), calculateError(calcError)
+                               const std::vector<PropagatorPtr> &props, Type projectionType, bool calcError): measurements(measuredGrams),
+                               imSize(imsize), p_measurements(p_measuredGrams), numImages(numimages), propagators(props), type(projectionType),
+                               calculateError(calcError), croppedAmp(nullptr)
 {
     if (type != Averaged) {
         throw std::invalid_argument("Invalid projection computing method!");
@@ -202,7 +203,8 @@ PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, const float *p_measur
 
 PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const IntArray &meassize, const std::vector<PropagatorPtr> &props,
                                const IntArray &imsize, Type projectionType, bool calcError): measurements(measuredGrams), numImages(numimages), 
-                               imSize(imsize), propagators(props), type(projectionType), calculateError(calcError), measSize(meassize), p_measurements(nullptr)
+                               imSize(imsize), propagators(props), type(projectionType), calculateError(calcError), measSize(meassize),
+                               p_measurements(nullptr), croppedAmp(nullptr)
 {
     if (type != Averaged) {
         throw std::invalid_argument("Invalid projection computing method!");
@@ -217,6 +219,10 @@ PMagnitudeCons::PMagnitudeCons(const float *measuredGrams, int numimages, const 
 
     blockSize = 1024;
     numBlocks = (imSize[0] * imSize[1] * batchSize + blockSize - 1) / blockSize;
+
+    if (calculateError) {
+        cudaMalloc(&croppedAmp, measSize[0] * measSize[1] * batchSize * sizeof(float));
+    }
 }
 
 // Project step: propagate wavefield and constrain amplitude
@@ -244,7 +250,16 @@ void PMagnitudeCons::projBIPAveraged()
     propagators[0]->propagate(complexWave, cmp3DWave);
     
     computeAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, amp3DWave, imSize[0] * imSize[1] * batchSize);
-    residual = FloatInf;
+    if (calculateError) {
+        for (int i = 0; i < batchSize; i++) {
+            CUDAUtils::cropMatrix(amp3DWave + i * imSize[0] * imSize[1], croppedAmp + i * measSize[0] * measSize[1],
+                                  imSize[0], imSize[1], start_row, start_col, start_row, start_col);
+        }
+        residual = CUDAUtils::computeL2Norm(croppedAmp, measurements, measSize[0] * measSize[1] * batchSize);
+    } else {
+        residual = FloatInf;
+    }
+
     CUDAUtils::copyBatchMatrix(amp3DWave, measurements, imSize[0], imSize[1], measSize[0], measSize[1],
                                batchSize, start_row, start_col);
     setAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, amp3DWave, imSize[0] * imSize[1] * batchSize);
@@ -281,7 +296,7 @@ void PMagnitudeCons::projProbeAveraged()
     propagators[0]->propagate(probe, cmp3DWave);
 
     numBlocks = numBlocks2;
-    limitAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, p_measurements, imSize[0] * imSize[1] * batchSize);
+    setAmplitude<<<numBlocks, blockSize>>>(cmp3DWave, p_measurements, imSize[0] * imSize[1] * batchSize);
     propagators[0]->backPropagate(cmp3DWave, probe);
 
     // Isolate object wavefield from probe wavefield
@@ -339,5 +354,9 @@ PMagnitudeCons::~PMagnitudeCons()
     if (p_measurements) {
         cudaFree(probeWave);
         cudaFree(probe);
+    }
+
+    if (croppedAmp) {
+        cudaFree(croppedAmp);
     }
 }

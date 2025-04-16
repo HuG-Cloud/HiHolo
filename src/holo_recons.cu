@@ -39,7 +39,7 @@ namespace PhaseRetrieval
     // }
 
     FArray reconstruct_ctf(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelnumbers, float lowFreqLim,
-                           float highFreqLim, float betaDeltaRatio, const IntArray &padSize, CUDAUtils::PaddingType padType)
+                           float highFreqLim, float betaDeltaRatio, const IntArray &padSize, CUDAUtils::PaddingType padType, float padValue)
     {
         // Add GPU environment check
         int deviceCount;
@@ -85,7 +85,7 @@ namespace PhaseRetrieval
             for (int i = 0; i < numImages; i++) {
                 cudaStreamCreate(&streams[i]);
                 CUDAUtils::padMatrix(holograms_gpu + i * imSize[0] * imSize[1], paddedHolograms_gpu + i * newSize[0] * newSize[1],
-                                     imSize[0], imSize[1], padSize[0], padSize[1], padType, 0.0f, streams[i]);
+                                     imSize[0], imSize[1], padSize[0], padSize[1], padType, padValue, streams[i]);
             }
 
             for (int i = 0; i < numImages; i++) {
@@ -131,9 +131,9 @@ namespace PhaseRetrieval
         return result;
     }
 
-    CTFReconstructor::CTFReconstructor(int batchsize, int images, const IntArray &imsize, const F2DArray &fresnelnumbers, float lowFreqLim, float highFreqLim,
-                                       float ratio, const IntArray &padsize, CUDAUtils::PaddingType padtype): batchSize(batchsize), numImages(images), imSize(imsize),
-                                       newSize(imsize), fresnelNumbers(fresnelnumbers), betaDeltaRatio(ratio), padSize(padsize), padType(padtype)
+    CTFReconstructor::CTFReconstructor(int batchsize, int images, const IntArray &imsize, const F2DArray &fresnelnumbers, float lowFreqLim, float highFreqLim, float ratio,
+                                       const IntArray &padsize, CUDAUtils::PaddingType padtype, float padvalue): batchSize(batchsize), numImages(images), imSize(imsize),
+                                       newSize(imsize), fresnelNumbers(fresnelnumbers), betaDeltaRatio(ratio), padSize(padsize), padType(padtype), padValue(padvalue)
     {
         for (auto &fresnelNumber: fresnelNumbers) {
             if (fresnelNumber.size() != 1 && fresnelNumber.size() != imSize.size()) {
@@ -185,7 +185,7 @@ namespace PhaseRetrieval
                 for (int j = 0; j < numImages; j++) {
                     CUDAUtils::padMatrix(d_holograms + i * numImages * imSize[0] * imSize[1] + j * imSize[0] * imSize[1],
                                          d_paddedHolograms + j * newSize[0] * newSize[1], imSize[0], imSize[1], padSize[0],
-                                         padSize[1], padType, 0.0f, streams[j]);
+                                         padSize[1], padType, padValue, streams[j]);
                 }
                 for (int j = 0; j < numImages; j++) {
                     cudaStreamSynchronize(streams[j]);
@@ -225,11 +225,10 @@ namespace PhaseRetrieval
         }
     }
 
-    F2DArray reconstruct_iter(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelNumbers, int iterations, 
-                              const FArray &initialPhase, ProjectionSolver::Algorithm algorithm, const FArray &algoParameters, const IntArray &padSize,
-                              float minPhase, float maxPhase, float minAmplitude, float maxAmplitude, const IntArray &support, float outsideValue, 
-                              PMagnitudeCons::Type projectionType, CUDAPropKernel::Type kernelType, CUDAUtils::PaddingType padType, const FArray &holoProbes, 
-                              const FArray &initProbePhase, bool calcError)
+    F2DArray reconstruct_iter(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelNumbers, int iterations, const FArray &initialPhase,
+                              ProjectionSolver::Algorithm algorithm, const FArray &algoParameters, float minPhase, float maxPhase, float minAmplitude, float maxAmplitude,
+                              const IntArray &support, float outsideValue, const IntArray &padSize, CUDAUtils::PaddingType padType, float padValue, PMagnitudeCons::Type projectionType,
+                              CUDAPropKernel::Type kernelType, const FArray &holoProbes, const FArray &initProbePhase, bool calcError)
     {
         // Add GPU environment check
         int deviceCount;
@@ -267,7 +266,7 @@ namespace PhaseRetrieval
             for (int i = 0; i < numImages; i++) {
                 cudaStreamCreate(&streams[i]);
                 CUDAUtils::padMatrix(holograms_gpu + i * imSize[0] * imSize[1], paddedHolograms_gpu + i * newSize[0] * newSize[1],
-                                     imSize[0], imSize[1], padSize[0], padSize[1], padType, 0.0f, streams[i]);
+                                     imSize[0], imSize[1], padSize[0], padSize[1], padType, padValue, streams[i]);
             }
             for (int i = 0; i < numImages; i++) {
                 cudaStreamSynchronize(streams[i]);
@@ -282,7 +281,7 @@ namespace PhaseRetrieval
 
                 for (int i = 0; i < numImages; i++) {
                     CUDAUtils::padMatrix(holoprobes_gpu + i * imSize[0] * imSize[1], paddedProbes_gpu + i * newSize[0] * newSize[1],
-                                         imSize[0], imSize[1], padSize[0], padSize[1], padType, 0.0f, streams[i]);
+                                         imSize[0], imSize[1], padSize[0], padSize[1], padType, padValue, streams[i]);
                 }
                 for (int i = 0; i < numImages; i++) {
                     cudaStreamSynchronize(streams[i]);
@@ -373,7 +372,7 @@ namespace PhaseRetrieval
             cudaMemcpy(initPhase_gpu, initialPhase.data(), initialPhase.size() * sizeof(float), cudaMemcpyHostToDevice);
 
             // Pad initial phase if needed
-            float *paddedInitPhase_gpu = CUDAUtils::padInputData(initPhase_gpu, imSize, padSize, padType);
+            float *paddedInitPhase_gpu = CUDAUtils::padInputData(initPhase_gpu, imSize, padSize, padType, padValue);
             if (paddedInitPhase_gpu != initPhase_gpu) {
                 cudaFree(initPhase_gpu);
             }
@@ -399,7 +398,7 @@ namespace PhaseRetrieval
                 cudaMemcpy(initProbePhase_gpu, initProbePhase.data(), initProbePhase.size() * sizeof(float), cudaMemcpyHostToDevice);
 
                 // Pad probe phase if needed
-                float *paddedProbePhase_gpu = CUDAUtils::padInputData(initProbePhase_gpu, imSize, padSize, padType);
+                float *paddedProbePhase_gpu = CUDAUtils::padInputData(initProbePhase_gpu, imSize, padSize, padType, padValue);
                 if (paddedProbePhase_gpu != initProbePhase_gpu) {
                     cudaFree(initProbePhase_gpu);
                 }
@@ -600,10 +599,10 @@ namespace PhaseRetrieval
     }
 
     Reconstructor::Reconstructor(int batchsize, int images, const IntArray &imsize, const F2DArray &fresnelNumbers, int iter, ProjectionSolver::Algorithm algo,
-                                 const FArray &algoParams, const IntArray &padsize, float minPhase, float maxPhase, float minAmplitude, float maxAmplitude, 
-                                 const IntArray &support, float outsideValue, PMagnitudeCons::Type projType, CUDAPropKernel::Type kernelType, CUDAUtils::PaddingType padtype): 
+                                 const FArray &algoParams, float minPhase, float maxPhase, float minAmplitude, float maxAmplitude, const IntArray &support, float outsideValue,
+                                 const IntArray &padsize, CUDAUtils::PaddingType padtype, float padvalue, PMagnitudeCons::Type projType, CUDAPropKernel::Type kernelType):
                                  batchSize(batchsize), numImages(images), imSize(imsize), newSize(imsize), iteration(iter), algorithm(algo), algoParameters(algoParams),
-                                 padSize(padsize), projectionType(projType), padType(padtype), d_support(nullptr)
+                                 padSize(padsize), projectionType(projType), padType(padtype), padValue(padvalue), d_support(nullptr)
     {
         if (!padSize.empty()) {
             newSize[0] += 2 * padSize[0];
@@ -679,7 +678,7 @@ namespace PhaseRetrieval
                 for (int j = 0; j < numImages; j++) {
                     CUDAUtils::padMatrix(d_holograms + i * numImages * imSize[0] * imSize[1] + j * imSize[0] * imSize[1], 
                                          d_paddedHolograms + j * newSize[0] * newSize[1], imSize[0], imSize[1], padSize[0],
-                                         padSize[1], padType, 0.0f, streams[j]);
+                                         padSize[1], padType, padValue, streams[j]);
                 }
 
                 for (int j = 0; j < numImages; j++) {
@@ -702,7 +701,7 @@ namespace PhaseRetrieval
             if (!initialPhase.empty()) {
                 if (!padSize.empty()) {
                     CUDAUtils::padMatrix(d_initPhase + i * imSize[0] * imSize[1], d_paddedInitPhase,
-                                         imSize[0], imSize[1], padSize[0], padSize[1], padType);
+                                         imSize[0], imSize[1], padSize[0], padSize[1], padType, padValue);
                     d_temp = d_paddedInitPhase;
                 } else {
                     d_temp = d_initPhase + i * imSize[0] * imSize[1];

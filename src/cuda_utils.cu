@@ -135,21 +135,6 @@ __global__ void limitAmplitude(cuFloatComplex *complexWave, const float *amplitu
     }
 }
 
-__global__ void limitAmplitude(cuFloatComplex *complexWave, const float *targetAmplitude, int numel)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < numel) {
-        float amplitude = hypotf(complexWave[idx].x, complexWave[idx].y);
-        if (amplitude >= 1e-10) {
-            float scale = targetAmplitude[idx] / amplitude;
-            complexWave[idx].x *= scale;
-            complexWave[idx].y *= scale;
-        } else {
-            complexWave[idx] = make_cuFloatComplex(targetAmplitude[idx], 0.0f);
-        }
-    }
-}
-
 __global__ void adjustAmplitude(float *amplitude, float maxAmplitude, float minAmplitude, int numel)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -593,7 +578,7 @@ void CUDAUtils::genFFTFreq(float* rowRange, float* colRange, const IntArray &imS
     genShiftedFFTFreq<<<numBlocks, blockSize, 0, stream>>>(colRange, cols, spacing[1]);
 }
 
-void CUDAUtils::cropMatrix(cuFloatComplex* matrix, cuFloatComplex* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols)
+void CUDAUtils::cropMatrix(const cuFloatComplex* matrix, cuFloatComplex* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols)
 {
     int newRows = rows - cropPreRows - cropPostRows;
     int newCols = cols - cropPreCols - cropPostCols;
@@ -610,7 +595,7 @@ void CUDAUtils::cropMatrix(cuFloatComplex* matrix, cuFloatComplex* matrix_new, i
     nppiCopy_32fc_C1R(reinterpret_cast<const Npp32fc*>(matrix) + srcOffset.y * cols + srcOffset.x, srcStep, reinterpret_cast<Npp32fc*>(matrix_new), dstStep, srcSize);
 }
 
-void CUDAUtils::cropMatrix(float* matrix, float* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols)
+void CUDAUtils::cropMatrix(const float* matrix, float* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols)
 {
     int newRows = rows - cropPreRows - cropPostRows;
     int newCols = cols - cropPreCols - cropPostCols;

@@ -15,6 +15,10 @@ int main(int argc, char* argv[])
            .help("input hdf5 file and dataset")
            .required().nargs(2);
 
+    program.add_argument("--output_files", "-O")
+           .help("output hdf5 file and dataset")
+           .required().nargs(2);
+
     program.add_argument("--fresnel_numbers", "-f")
            .help("list of fresnel numbers corresponding to holograms")
            .required().nargs(argparse::nargs_pattern::at_least_one).scan<'g', float>();
@@ -31,13 +35,17 @@ int main(int argc, char* argv[])
            .help("regularisation parameters for high frequencies [default: 1e-1]")
            .required().scan<'g', float>().default_value(1e-1f);
 
-    program.add_argument("--padding_size", "-s")
+    program.add_argument("--padding_size", "-S")
            .help("size to pad on holograms")
            .nargs(2).scan<'i', int>();
 
     program.add_argument("--padding_type", "-p")
            .help("type of padding matrix around [0: constant, 1: replicate, 2: fadeout]")
            .default_value(1).scan<'i', int>();
+
+    program.add_argument("--padding_value", "-V")
+           .help("value to pad on holograms and initial phase")
+           .default_value(0.0f).scan<'g', float>();
 
     try {
         program.parse_args(argc, argv);
@@ -68,26 +76,30 @@ int main(int argc, char* argv[])
 
     IntArray padSize;
     CUDAUtils::PaddingType padType;
-
-    if (program.is_used("-s")) {
-       padSize = program.get<IntArray>("-s");
+    float padValue;    
+    if (program.is_used("-S")) {
+       padSize = program.get<IntArray>("-S");
        padType = static_cast<CUDAUtils::PaddingType>(program.get<int>("-p"));
+       padValue = program.get<float>("-V");
     }
 
     // Read regularisation parameters
     float lowFreqLim = program.get<float>("-L");
     float highFreqLim = program.get<float>("-H");
+
+    std::vector<std::string> outputs = program.get<std::vector<std::string>>("-O");
        
     auto start = std::chrono::high_resolution_clock::now();    
-    FArray phase = PhaseRetrieval::reconstruct_ctf(holograms, numHolograms, imSize, fresnelNumbers, lowFreqLim, highFreqLim, ratio, padSize, padType);
+    FArray phase = PhaseRetrieval::reconstruct_ctf(holograms, numHolograms, imSize, fresnelNumbers, lowFreqLim,
+                                                   highFreqLim, ratio, padSize, padType, padValue);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
 
     F2DArray result {phase};
     // Display the phase result and save to HDF5 file
-    // IOUtils::savePhasegrams("/home/hug/Downloads/HoloTomo_Data/reconsfile.h5", "phasedata", result[0], imSize[0], imSize[1]);
-    ImageUtils::displayNDArray(result, imSize[0], imSize[1], std::vector<std::string>{"phase"});
+    ImageUtils::displayPhase(result[0], imSize[0], imSize[1], "phase");
+    IOUtils::savePhasegrams(outputs[0], outputs[1], result[0], imSize[0], imSize[1]);
 
     return 0;
 }

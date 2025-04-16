@@ -48,6 +48,14 @@ int main(int argc, char* argv[])
            .help("size to pad on holograms")
            .nargs(2).scan<'i', int>();
 
+    program.add_argument("--padding_type", "-p")
+           .help("type of padding matrix around [0: constant, 1: replicate, 2: fadeout]")
+           .default_value(1).scan<'i', int>();
+
+    program.add_argument("--padding_value", "-V")
+           .help("value to pad on holograms and initial phase")
+           .default_value(0.0f).scan<'g', float>();
+
     program.add_argument("--phase_limits", "-pl")
            .help("minimum and maximum phase constraints")
            .nargs(2).scan<'g', float>();
@@ -72,10 +80,6 @@ int main(int argc, char* argv[])
            .help("propagation kernel method [0: fourier, 1: chirp, 2: chirplimited]")
            .required().default_value(0).scan<'i', int>();
 
-    program.add_argument("--padding_type", "-p")
-           .help("type of padding matrix around [0: constant, 1: replicate, 2: fadeout]")
-           .default_value(1).scan<'i', int>();
-
     try {
         program.parse_args(argc, argv);
     } catch (const std::runtime_error& err) {
@@ -88,7 +92,7 @@ int main(int argc, char* argv[])
     std::vector<hsize_t> dims;
     std::vector<std::string> inputs = program.get<std::vector<std::string>>("-I");
     IOUtils::readDataDims(inputs[0], inputs[1], dims);
-    if (dims.empty() || dims.size() != 4) {
+    if (dims.size() != 4) {
         throw std::runtime_error("Invalid holograms or dimensions!");
     }
 
@@ -130,9 +134,11 @@ int main(int argc, char* argv[])
 
     IntArray padSize;
     CUDAUtils::PaddingType padType;
+    float padValue;
     if (program.is_used("-S")) {
         padSize = program.get<IntArray>("-S");
         padType = static_cast<CUDAUtils::PaddingType>(program.get<int>("-p"));
+        padValue = program.get<float>("-V");
     }
 
     FArray ampLimits {0, FloatInf};
@@ -159,10 +165,9 @@ int main(int argc, char* argv[])
     std::vector<hsize_t> outputDims = {dims[0], dims[2], dims[3]};
     IOUtils::createFileDataset(outputs[0], outputs[1], outputDims);
     
-    auto reconstructor = PhaseRetrieval::Reconstructor(batchSize, numHolograms, imSize, fresnelNumbers, iterations,
-                                                       algorithm, parameters, padSize, phaseLimits[0], phaseLimits[1],
-                                                       ampLimits[0], ampLimits[1], support, outsideValue, projectionType,
-                                                       kernelMethod, padType);
+    auto reconstructor = PhaseRetrieval::Reconstructor(batchSize, numHolograms, imSize, fresnelNumbers, iterations, algorithm,
+                                                       parameters, phaseLimits[0], phaseLimits[1], ampLimits[0], ampLimits[1],
+                                                       support, outsideValue, padSize, padType, padValue, projectionType, kernelMethod);
 
     auto start = std::chrono::high_resolution_clock::now();
 

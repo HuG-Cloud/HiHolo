@@ -50,8 +50,8 @@ namespace CUDAUtils
     
     enum PaddingType {Constant, Replicate, Fadeout};
 
-    void cropMatrix(cuFloatComplex* matrix, cuFloatComplex* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols);
-    void cropMatrix(float* matrix, float* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols);
+    void cropMatrix(const cuFloatComplex* matrix, cuFloatComplex* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols);
+    void cropMatrix(const float* matrix, float* matrix_new, int rows, int cols, int cropPreRows, int cropPreCols, int cropPostRows, int cropPostCols);
     void padByConstant(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, float padValue, cudaStream_t stream = 0);
     void padByReplicate(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, cudaStream_t stream = 0);
     void padByFadeout(float* matrix, float* matrix_new, int rows, int cols, int padRows, int padCols, cudaStream_t stream = 0);
@@ -113,7 +113,6 @@ __global__ void adjustPhase(float *phase, float maxPhase, float minPhase, int nu
 __global__ void adjustComplexWave(cuFloatComplex *complexWave, const float *support, float outsideValue, int numel);
 
 __global__ void limitAmplitude(cuFloatComplex *complexWave, const float *amplitude, const float *targetAmplitude, int numel);
-__global__ void limitAmplitude(cuFloatComplex *complexWave, const float *targetAmplitude, int numel);
 __global__ void sqrtIntensity(float *amplitude, int numel);
 
 __global__ void updateDM(cuFloatComplex *probe, const cuFloatComplex *probeWave, const cuFloatComplex *complexWave, int numel);

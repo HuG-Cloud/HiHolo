@@ -39,13 +39,17 @@ int main(int argc, char* argv[])
            .help("regularisation parameters for high frequencies [default: 1e-1]")
            .required().scan<'g', float>().default_value(1e-1f);
 
-    program.add_argument("--padding_size", "-s")
+    program.add_argument("--padding_size", "-S")
            .help("size to pad on holograms")
            .nargs(2).scan<'i', int>();
 
     program.add_argument("--padding_type", "-p")
            .help("type of padding matrix around [0: constant, 1: replicate, 2: fadeout]")
            .default_value(1).scan<'i', int>();
+
+    program.add_argument("--padding_value", "-V")
+           .help("value to pad on holograms and initial phase")
+           .default_value(0.0f).scan<'g', float>();
 
     try {
         program.parse_args(argc, argv);
@@ -83,10 +87,11 @@ int main(int argc, char* argv[])
 
     IntArray padSize;
     CUDAUtils::PaddingType padType;
-
-    if (program.is_used("-s")) {
-       padSize = program.get<IntArray>("-s");
+    float padValue;
+    if (program.is_used("-S")) {
+       padSize = program.get<IntArray>("-S");
        padType = static_cast<CUDAUtils::PaddingType>(program.get<int>("-p"));
+       padValue = program.get<float>("-V");
     }
 
     // Read regularisation parameters
@@ -97,9 +102,8 @@ int main(int argc, char* argv[])
     std::vector<hsize_t> outputDims {dims[0], dims[2], dims[3]};
     IOUtils::createFileDataset(outputs[0], outputs[1], outputDims);
 
-    auto reconstructor = new PhaseRetrieval::CTFReconstructor(batchSize, numHolograms, imSize,
-                                                              fresnelNumbers, lowFreqLim, highFreqLim,
-                                                              ratio, padSize, padType);
+    auto reconstructor = new PhaseRetrieval::CTFReconstructor(batchSize, numHolograms, imSize, fresnelNumbers,
+                                                              lowFreqLim, highFreqLim, ratio, padSize, padType, padValue);
     auto start = std::chrono::high_resolution_clock::now();    
 
     for (int i = 0; i < totalAngles; i += batchSize) {
