@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(distance_calibration LANGUAGES CXX CUDA C)
+project(holo_recons LANGUAGES CXX CUDA C)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -26,15 +26,14 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/include
 )
 
-# 定义源文件
-set(CPP_SRCS
-    examples/arg_distance_calibr.cpp
+# 定义公共源文件
+set(COMMON_CPP_SRCS
     src/math_utils.cpp
     src/imageio_utils.cpp
     src/ProjectionSolver.cpp
 )
 
-set(CUDA_SRCS
+set(COMMON_CUDA_SRCS
     src/Propagator.cu
     src/WaveField.cu
     src/Projector.cu
@@ -42,11 +41,26 @@ set(CUDA_SRCS
     src/cuda_utils.cu
 )
 
-# 添加可执行文件
-add_executable(${PROJECT_NAME} ${CPP_SRCS} ${CUDA_SRCS})
+# 定义所有应用程序
+set(APP_TARGETS
+    holo_recons_interval
+    holo_recons_ctf
+    holo_recons_ctf_angles
+    holo_recons_ite_angles
+    holo_distance_calibr
+    holo_registration
+)
 
-# 链接库
-target_link_libraries(${PROJECT_NAME}
+# 为每个应用程序创建可执行文件
+add_executable(holo_recons_interval examples/arg_recons_interval.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
+add_executable(holo_recons_ctf examples/arg_recons_ctf.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
+add_executable(holo_recons_ctf_angles examples/arg_recons_ctf_angles.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
+add_executable(holo_recons_ite_angles examples/arg_recons_ite_angles.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
+add_executable(holo_distance_calibr examples/arg_distance_calibr.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
+add_executable(holo_registration examples/arg_holo_reg.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
+
+# 定义公共链接库
+set(COMMON_LIBS
     ${OpenCV_LIBS}
     ${CUDA_LIBRARIES}
     ${CUDA_cufft_LIBRARY}
@@ -56,3 +70,8 @@ target_link_libraries(${PROJECT_NAME}
     ${SimpleITK_LIBRARIES}
     ${GSL_LIBRARIES}
 )
+
+# 为每个应用程序链接库
+foreach(target ${APP_TARGETS})
+    target_link_libraries(${target} ${COMMON_LIBS})
+endforeach()
