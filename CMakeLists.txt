@@ -18,8 +18,6 @@ find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui imgcodecs)
 find_package(CUDA REQUIRED)
 find_package(GSL REQUIRED)
 find_package(HDF5 REQUIRED)
-
-# SimpleITK 配置
 find_package(SimpleITK REQUIRED)
 
 # 包含目录

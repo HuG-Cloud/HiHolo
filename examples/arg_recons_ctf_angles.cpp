@@ -25,19 +25,20 @@ int main(int argc, char* argv[])
 
     program.add_argument("--fresnel_numbers", "-f")
            .help("list of fresnel numbers corresponding to holograms")
-           .required().nargs(argparse::nargs_pattern::at_least_one).scan<'g', float>();
+           .required().nargs(argparse::nargs_pattern::at_least_one)
+           .scan<'g', float>();
 
     program.add_argument("--ratio", "-r")
            .help("fixed ratio between absorption and phase shifts")
-           .required().scan<'g', float>().default_value(0.0f);
+           .default_value(0.0f).scan<'g', float>();
     
     program.add_argument("--low_freq_lim", "-L")
            .help("regularisation parameters for low frequencies [default: 1e-3]")
-           .required().scan<'g', float>().default_value(1e-3f);
+           .default_value(1e-3f).scan<'g', float>();
 
     program.add_argument("--high_freq_lim", "-H")
            .help("regularisation parameters for high frequencies [default: 1e-1]")
-           .required().scan<'g', float>().default_value(1e-1f);
+           .default_value(1e-1f).scan<'g', float>();
 
     program.add_argument("--padding_size", "-S")
            .help("size to pad on holograms")

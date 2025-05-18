@@ -15,9 +15,12 @@ typedef std::vector<double> DArray;
 typedef std::vector<DArray> D2DArray;
 
 typedef std::vector<std::complex<float>> ComArray;
-typedef std::vector<ComArray> Com2DArray; 
+typedef std::vector<ComArray> Com2DArray;
 
 typedef std::vector<bool> BArray;
 typedef std::vector<BArray> B2DArray;
+
+typedef std::vector<uint16_t> U16Array;
+typedef std::vector<uint8_t> U8Array;
 
 #endif

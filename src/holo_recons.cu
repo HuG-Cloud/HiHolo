@@ -2,39 +2,65 @@
 
 namespace PhaseRetrieval
 {
-    // void preprocess_data(const std::string &inFileName, const std::string &inDatasetName, std::vector<hsize_t> &dims,
-    //                          const std::string &outFileName, const std::string &outDatasetName, int kernelSize, float threshold,
-    //                          bool applyFilter, int rangeRows, int rangeCols, int movmeanSize, const std::string &method)
-    // {
-    //     if (inFileName.empty() || inDatasetName.empty() || dims.size() != 3 || outFileName.empty() || outDatasetName.empty()) {
-    //         throw std::invalid_argument("Empty file name, dataset name or invalid dimensions!");
-    //     }
-        
-    //     // Read original data from HDF5 file
-    //     std::vector<uint16_t> originalData;
-    //     if (IOUtils::readRawData(inFileName, inDatasetName, originalData, dims))
-    //         std::cout << "Read experimental data successfully!" << std::endl;
+    F2DArray preprocess_data(const U16Array &rawData, const U16Array &dark, const U16Array &flat, int numImages, const IntArray &imSize,
+                             bool isAPWP, int kernelSize, float threshold, int rangeRows, int rangeCols, int movmeanSize, const std::string &method)
+    {
+        // Convert detector data vector(uint16) to cv::Mats(float) and remove outliers
+        std::vector<cv::Mat> holoMats = ImageUtils::convertVecToMats(rawData, numImages, imSize[0], imSize[1]);
+        cv::Mat darkMat = ImageUtils::convertVecToMat(dark, imSize[0], imSize[1]);
+        std::vector<cv::Mat> probeMats;
+        if (isAPWP) {
+            probeMats = ImageUtils::convertVecToMats(flat, numImages, imSize[0], imSize[1]);
+        } else {
+            probeMats.push_back(ImageUtils::convertVecToMat(flat, imSize[0], imSize[1]));
+        }
 
-    //     // Convert vector(uint16) to cv::Mats(float) and remove outliers
-    //     std::vector<cv::Mat> mats = ImageUtils::convertVecToMats(originalData, dims[0], dims[1], dims[2]);
-    //     for (auto &mat: mats) {
-    //         ImageUtils::removeOutliers(mat, kernelSize, threshold);
-    //     }
+        for (int i = 0; i < numImages; i++) {
+            ImageUtils::removeOutliers(holoMats[i], kernelSize, threshold);
+        }
+        ImageUtils::removeOutliers(darkMat, kernelSize, threshold);
+        for (int i = 0; i < probeMats.size(); i++) {
+            ImageUtils::removeOutliers(probeMats[i], kernelSize, threshold);
+        }
 
-    //     // Align multi-distance images and calculate holograms
-    //     for (int i = 1; i < dims[0]; i++) {
-    //         ImageUtils::alignImages(mats[i], mats[0], applyFilter, kernelSize);
-    //     }
-    //     /* (data - dark) ./ flat */
+        /* (data - dark) ./ flat */
+        if (isAPWP) {
+            for (int i = 0; i < numImages; i++) {
+                holoMats[i] -= darkMat;
+            }
+        } else {
+            for (int i = 0; i < numImages; i++) {
+                holoMats[i] = (holoMats[i] - darkMat) / probeMats[0];
+            }
+        }
+
+        for (auto &mat: holoMats) {
+            ImageUtils::removeStripes(mat, rangeRows, rangeCols, movmeanSize, method);
+        }
+
+        std::vector<itk::simple::Image> holoImages(numImages);
+        ImageUtils::convertMatsToImgs(holoMats, holoImages, imSize[0], imSize[1]);
+        for (int i = 1; i < numImages; i++) {
+            ImageUtils::registerImage(holoImages[0], holoImages[i]);
+        }
+
+        FArray holograms(numImages * imSize[0] * imSize[1]);
+        ImageUtils::convertImgsToVec(holoImages, holograms.data(), imSize[0], imSize[1]);
+        F2DArray result {holograms};
+
+        if (isAPWP) {
+            FArray probes = ImageUtils::convertMatsToVec(probeMats);
+            result.push_back(probes);
+        }
+
+        return result;
+    }
 
     //     for (auto &mat: mats) {
     //         ImageUtils::removeStripes(mat, rangeRows, rangeCols, movmeanSize, method);
     //     }
 
     //     // Convert cv::Mats(float) to D2DArray and save to HDF5 file
-    //     D2DArray holograms = ImageUtils::convertMatsToVec(mats);
-    //     if (IOUtils::saveProcessedGrams(outFileName, outDatasetName, holograms, dims[1], dims[2]))
-    //         std::cout << "Process and save holograms successfully!" << std::endl;
 
     // }
 

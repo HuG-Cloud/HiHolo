@@ -2,31 +2,52 @@
 
 const uchar maxUChar = std::numeric_limits<uchar>::max();
 
-std::vector<cv::Mat> ImageUtils::convertVecToMats(const std::vector<uint16_t> &data, int numImages, int rows, int cols)
+std::vector<cv::Mat> ImageUtils::convertVecToMats(const U16Array &data, int numImages, int rows, int cols)
 {
-    if (data.size() != static_cast<size_t>(numImages * rows * cols)) {
-        throw std::invalid_argument("Data size does not match the specified number and dimension!");
-    }
-
     std::vector<cv::Mat> mats(numImages, cv::Mat(rows, cols, CV_16U));
     for (int i = 0; i < numImages; i++) {
         memcpy(mats[i].data, data.data() + i * rows * cols, rows * cols * sizeof(uint16_t));
-    }
-    
-    for (auto &mat: mats) {
-        mat.convertTo(mat, CV_32F);
+        mats[i].convertTo(mats[i], CV_32F);
     }
     
     return mats;
 }
 
+cv::Mat ImageUtils::convertVecToMat(const U16Array &data, int rows, int cols)
+{
+    cv::Mat mat(rows, cols, CV_16U);
+    memcpy(mat.data, data.data(), rows * cols * sizeof(uint16_t));
+    mat.convertTo(mat, CV_32F);
+
+    return mat;
+}
+
+FArray ImageUtils::convertMatsToVec(const std::vector<cv::Mat> &mats)
+{
+    FArray grams(mats.size() * mats[0].rows * mats[0].cols);
+    for (int i = 0; i < mats.size(); i++) {
+        memcpy(grams.data() + i * mats[i].rows * mats[i].cols,
+               mats[i].data, mats[i].rows * mats[i].cols * sizeof(float));
+    }
+
+    return grams;
+}
+
 void ImageUtils::convertVecToImgs(float *data, std::vector<itk::simple::Image> &images, int rows, int cols)
 {
     std::vector<unsigned int> size = {static_cast<unsigned int>(cols), static_cast<unsigned int>(rows)};
-
     for (int i = 0; i < images.size(); i++) {
         // 使用ImportImageFilter创建图像
         images[i] = itk::simple::ImportAsFloat(data + i * rows * cols, size, std::vector<double>(2, 1.0));
+    }
+}
+
+void ImageUtils::convertMatsToImgs(const std::vector<cv::Mat> &mats, std::vector<itk::simple::Image> &images, int rows, int cols)
+{
+    std::vector<unsigned int> size = {static_cast<unsigned int>(cols), static_cast<unsigned int>(rows)};
+
+    for (int i = 0; i < mats.size(); i++) {
+        images[i] = itk::simple::ImportAsFloat(reinterpret_cast<float*>(mats[i].data), size, std::vector<double>(2, 1.0));
     }
 }
 
@@ -38,31 +59,6 @@ void ImageUtils::convertImgsToVec(const std::vector<itk::simple::Image> &images,
     }
 }
 
-
-// D2DArray ImageUtils::convertMatsToVec(const std::vector<cv::Mat> &mats)
-// {
-//     D2DArray grams;
-//     for (const auto &mat: mats) {
-//         // Check the mat is of type float
-//         if (mat.type() != CV_32F) {
-//             std::cerr << "Mat type is not CV_32F!" << std::endl;
-//             return D2DArray();
-//         }
-        
-//         DArray gram(mat.rows * mat.cols);
-//         for (int i = 0; i < mat.rows; i++) {
-//             for (int j = 0; j < mat.cols; j++) {
-//                 gram[i * mat.cols + j] = static_cast<double>(mat.at<float>(i, j));
-//             }
-//         }
-        
-//         grams.push_back(gram);
-//     }
-
-//     return grams;
-// }
-
-
 void ImageUtils::removeOutliers(cv::Mat &originalImg, int kernelSize, float threshold)
 {   
     // Set the zero value to max
@@ -71,8 +67,7 @@ void ImageUtils::removeOutliers(cv::Mat &originalImg, int kernelSize, float thre
     {
         if (*it == 0 || *it == maxUInt_16) {
             *it = FloatInf;
-        }
-        
+        }        
     }
 
     // Median filter
@@ -100,19 +95,6 @@ void ImageUtils::removeOutliers(cv::Mat &originalImg, int kernelSize, float thre
     cv::Mat biasedPixels = absDiffImg > threshold * stddev[0];
 
     filteredImg.copyTo(originalImg, biasedPixels);
-}
-
-cv::Mat ImageUtils::filterImage(const cv::Mat &image, int kernelSize, float stddev)
-{
-    cv::Mat filteredImage;
-
-    // Apply gaussian low-pass filter to remove noise
-    cv::GaussianBlur(image, filteredImage, cv::Size(kernelSize, kernelSize), stddev);
-    // Apply high-pass filter to enhance edge
-    cv::Laplacian(filteredImage, filteredImage, CV_32F);
-    cv::medianBlur(filteredImage, filteredImage, kernelSize);
-
-    return filteredImage;
 }
 
 cv::Mat ImageUtils::genCorrMatrix(const cv::Mat &image, int range, int windowSize)
@@ -154,9 +136,9 @@ void ImageUtils::removeStripes(cv::Mat &image, int rangeRows, int rangeCols, int
     auto corrMatrix = corrMatrix_y + corrMatrix_x.t();
 
     // Remove stripes by dividing or subtracting
-    if (method == "multiplication") {
+    if (method == "mul") {
         image /= corrMatrix - cv::mean(corrMatrix)[0] + 1;
-    } else if (method == "addition") {
+    } else if (method == "add") {
         image -= corrMatrix - cv::mean(corrMatrix)[0];
     } else {
         throw std::invalid_argument("Invalid removal method!");
@@ -307,34 +289,148 @@ void ImageUtils::displayPhase(FArray &phase, int rows, int cols, const std::stri
     cv::waitKey(2000);
 }
 
-// bool IOUtils::readRawData(const std::string &filename, const std::string &datasetName, std::vector<uint16_t> &data, std::vector<hsize_t> &dims)
-// {
-//     try {
-//         // Open H5 file and dataset
-//         H5::H5File file(filename, H5F_ACC_RDONLY);
-//         H5::DataSet dataset = file.openDataSet(datasetName);
-
-//         // Make sure the dataset dimensions is 3D
-//         H5::DataSpace dataspace = dataset.getSpace();
-//         int rank = dataspace.getSimpleExtentNdims();
-//         if (rank != 3) {
-//             std::cerr << "Error: DataSet is not 3-dimensional!" << std::endl;
-//             return false;
-//         }
-
-//         dims.resize(rank);
-//         dataspace.getSimpleExtentDims(dims.data(), nullptr);
-
-//         data.resize(dims[0] * dims[1] * dims[2]);
-//         dataset.read(data.data(), H5::PredType::NATIVE_UINT16);
-
-//         return true;
-//     } catch(H5::Exception &error) {
-//         std::cerr << "Error reading dataset: " << error.getDetailMsg() << std::endl;
-//         return false;
-//     }
+bool IOUtils::readRawData(const std::string &filename, const std::vector<std::string> &datasetNames,
+                          std::vector<hsize_t> &dims, U16Array &data, U16Array &dark, U16Array &flat)
+{
+    // 使用HDF5的C接口实现
+    hid_t file_id, dataset_id, dataspace_id;
+    herr_t status;
     
-// }
+    // 打开H5文件
+    file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        std::cerr << "Error opening file: " << filename << std::endl;
+        return false;
+    }
+    
+    // 首先读取主数据集的维度信息
+    dataset_id = H5Dopen2(file_id, datasetNames[0].c_str(), H5P_DEFAULT);
+    if (dataset_id < 0) {
+        std::cerr << "Error opening dataset: " << datasetNames[0] << std::endl;
+        H5Fclose(file_id);
+        return false;
+    }
+    
+    dataspace_id = H5Dget_space(dataset_id);
+    if (dataspace_id < 0) {
+        std::cerr << "Error getting dataspace for dataset: " << datasetNames[0] << std::endl;
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+    
+    int ndims = H5Sget_simple_extent_ndims(dataspace_id);
+    if (ndims != 3) {
+        std::cerr << "Error: data must be 3-dimensional" << std::endl;
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+    
+    dims.resize(ndims);
+    status = H5Sget_simple_extent_dims(dataspace_id, dims.data(), nullptr);
+    if (status < 0) {
+        std::cerr << "Error getting dimensions of dataspace" << std::endl;
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+    
+    // 计算数据总大小
+    hsize_t total_size = dims[0] * dims[1] * dims[2];
+    
+    // 分配内存并读取主数据
+    data.resize(total_size);
+    status = H5Dread(dataset_id, H5T_NATIVE_USHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
+    if (status < 0) {
+        std::cerr << "Error reading dataset: " << datasetNames[0] << std::endl;
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+    
+    H5Sclose(dataspace_id);
+    H5Dclose(dataset_id);
+    
+    // 读取dark数据集
+    dataset_id = H5Dopen2(file_id, datasetNames[1].c_str(), H5P_DEFAULT);
+    if (dataset_id < 0) {
+        std::cerr << "Error opening dark dataset: " << datasetNames[1] << std::endl;
+        H5Fclose(file_id);
+        return false;
+    }
+    
+    dataspace_id = H5Dget_space(dataset_id);
+    if (H5Sget_simple_extent_ndims(dataspace_id) != 3) {
+        std::cerr << "Error: dark data must be 3-dimensional" << std::endl;
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+    
+    std::vector<hsize_t> dark_dims(ndims);
+    H5Sget_simple_extent_dims(dataspace_id, dark_dims.data(), nullptr);
+    
+    // 计算dark数据大小
+    hsize_t dark_size = dark_dims[0] * dark_dims[1] * dark_dims[2];
+    
+    dark.resize(dark_size);
+    status = H5Dread(dataset_id, H5T_NATIVE_USHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, dark.data());
+    if (status < 0) {
+        std::cerr << "Error reading dark dataset: " << datasetNames[1] << std::endl;
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+    
+    H5Sclose(dataspace_id);
+    H5Dclose(dataset_id);
+    
+    // 读取flat数据集
+    dataset_id = H5Dopen2(file_id, datasetNames[2].c_str(), H5P_DEFAULT);
+    if (dataset_id < 0) {
+        std::cerr << "Error opening flat dataset: " << datasetNames[2] << std::endl;
+        H5Fclose(file_id);
+        return false;
+    }
+    
+    dataspace_id = H5Dget_space(dataset_id);
+    if (H5Sget_simple_extent_ndims(dataspace_id) != 3) {
+        std::cerr << "Error: flat data must be 3-dimensional" << std::endl;
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+    
+    std::vector<hsize_t> flat_dims(ndims);
+    H5Sget_simple_extent_dims(dataspace_id, flat_dims.data(), nullptr);
+    
+    // 计算flat数据大小
+    hsize_t flat_size = flat_dims[0] * flat_dims[1] * flat_dims[2];
+    
+    flat.resize(flat_size);
+    status = H5Dread(dataset_id, H5T_NATIVE_USHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, flat.data());
+    if (status < 0) {
+        std::cerr << "Error reading flat dataset: " << datasetNames[2] << std::endl;
+        H5Sclose(dataspace_id);
+        H5Dclose(dataset_id);
+        H5Fclose(file_id);
+        return false;
+    }
+    
+    H5Sclose(dataspace_id);
+    H5Dclose(dataset_id);
+    
+    // 关闭文件
+    H5Fclose(file_id);
+    return true;
+}
 
 bool IOUtils::readDataDims(const std::string &filename, const std::string &datasetName, std::vector<hsize_t> &dims)
 {

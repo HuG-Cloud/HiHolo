@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
 
     program.add_argument("--iterations", "-i")
            .help("the number of iterations")
-           .required().scan<'i', int>().default_value(200);
+           .default_value(200).scan<'i', int>();
 
     program.add_argument("--guess_phase_file", "-G")
            .help("hdf5 file and dataset of initial guess phase")
@@ -35,11 +35,11 @@ int main(int argc, char* argv[])
 
     program.add_argument("--algorithm", "-a")
            .help("phase retrieval algorithm [0:ap, 1:raar, 2:hio, 3:drap, 4:apwp, 5:bipepi]")
-           .required().default_value(0).scan<'i', int>();
+           .default_value(0).scan<'i', int>();
 
     program.add_argument("--plot_interval", "-pi")
            .help("plot intervals for reconstruction")
-           .required().default_value(10).scan<'i', int>();
+           .default_value(10).scan<'i', int>();
 
     program.add_argument("--algorithm_parameters", "-P")
            .help("parameters corresponding to different algorithm [default for hio and drap: 0.7]\n"
@@ -84,11 +84,11 @@ int main(int argc, char* argv[])
 
     program.add_argument("--projection_type", "-t")
            .help("projection computing type [0:averaged, 1:sequential, 2:cyclic]")
-           .required().default_value(0).scan<'i', int>();
+           .default_value(0).scan<'i', int>();
 
     program.add_argument("--kernel_method", "-m")
            .help("propagation kernel method [0:fourier, 1:chirp, 2:chirplimited]")
-           .required().default_value(0).scan<'i', int>();
+           .default_value(0).scan<'i', int>();
     
     program.add_argument("--error_calculation", "-e")
            .help("whether to calculate iteration error")

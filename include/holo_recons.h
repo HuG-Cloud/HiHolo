@@ -2,13 +2,13 @@
 #define HOLO_RECONS_H_
 
 #include "ProjectionSolver.h"
-// #include "imageio_utils.h"
+#include "imageio_utils.h"
 
 namespace PhaseRetrieval
 {   
-    // void preprocess_data(const std::string &inFileName, const std::string &inDatasetName, std::vector<hsize_t> &dims, const std::string &outFileName,
-    //                          const std::string &outDatasetName, int kernelSize = 3, float threshold = 2.0f, bool applyFilter = false, int rangeRows = 0,
-    //                          int rangeCols = 0, int movmeanSize = 5, const std::string &method = "multiplication");
+    F2DArray preprocess_data(const U16Array &rawData, const U16Array &dark, const U16Array &flat, int numImages, const IntArray &imSize, bool isAPWP = false,
+                             int kernelSize = 3, float threshold = 2.0f, int rangeRows = 0, int rangeCols = 0, int movmeanSize = 5, const std::string &method = "mul");
+
     F2DArray reconstruct_iter(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelNumbers, int iterations, const FArray &initialPhase,
                               ProjectionSolver::Algorithm algorithm, const FArray &algoParameters, float minPhase, float maxPhase, float minAmplitude, float maxAmplitude,
                               const IntArray &support, float outsideValue, const IntArray &padSize, CUDAUtils::PaddingType padType, float padValue, PMagnitudeCons::Type projectionType,
@@ -20,6 +20,15 @@ namespace PhaseRetrieval
                               
     FArray reconstruct_ctf(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelnumbers, float lowFreqLim, float highFreqLim,
                            float betaDeltaRatio, const IntArray &padSize, CUDAUtils::PaddingType padType, float padValue);
+
+    class Preprocessor
+    {
+        private:
+            int kernelSize;
+            float threshold;
+            int rangeRows;
+            int rangeCols;
+    };
 
     class CTFReconstructor
     {

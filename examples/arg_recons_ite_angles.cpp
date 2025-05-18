@@ -25,15 +25,16 @@ int main(int argc, char* argv[])
 
     program.add_argument("--fresnel_numbers", "-f")
            .help("list of fresnel numbers corresponding to holograms")
-           .required().nargs(argparse::nargs_pattern::at_least_one).scan<'g', float>();
+           .required().nargs(argparse::nargs_pattern::at_least_one)
+           .scan<'g', float>();
 
     program.add_argument("--iterations", "-i")
            .help("the number of iterations")
-           .required().scan<'i', int>().default_value(200);
+           .default_value(200).scan<'i', int>();
 
     program.add_argument("--algorithm", "-a")
            .help("phase retrieval algorithm [0: ap, 1: raar, 2: hio, 3: drap]")
-           .required().default_value(0).scan<'i', int>();
+           .default_value(0).scan<'i', int>();
 
     program.add_argument("--algorithm_parameters", "-P")
            .help("parameters corresponding to different algorithm [default for hio and drap: 0.7]\n"
@@ -74,11 +75,11 @@ int main(int argc, char* argv[])
 
     program.add_argument("--projection_type", "-t")
            .help("projection computing type [0: averaged, 1: sequential, 2: cyclic]")
-           .required().default_value(0).scan<'i', int>();
+           .default_value(0).scan<'i', int>();
 
     program.add_argument("--kernel_method", "-m")
            .help("propagation kernel method [0: fourier, 1: chirp, 2: chirplimited]")
-           .required().default_value(0).scan<'i', int>();
+           .default_value(0).scan<'i', int>();
 
     try {
         program.parse_args(argc, argv);
