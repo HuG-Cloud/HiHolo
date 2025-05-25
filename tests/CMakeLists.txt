@@ -1,37 +1,44 @@
 cmake_minimum_required(VERSION 3.20)
-project(holo_regist_test LANGUAGES CXX CUDA)
+project(holo_regist_test LANGUAGES C CXX CUDA)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 添加调试信息编译选项
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -g -G")
+
 # 查找必要的包
 find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui imgcodecs)
+find_package(MPI REQUIRED)
 find_package(CUDA REQUIRED)
 find_package(GSL REQUIRED)
-find_package(HDF5 REQUIRED COMPONENTS CXX)
+find_package(HDF5 REQUIRED)
 
-# SimpleITK 和 ITK 配置
-set(SimpleITK_DIR "/home/hug/workspace/software/SimpleITK-build/SimpleITK-build" CACHE PATH "SimpleITK 配置目录")
-set(ITK_DIR "/home/hug/workspace/software/SimpleITK-build/ITK-build" CACHE PATH "ITK 配置目录")
-find_package(SimpleITK REQUIRED)
+set(ARGPARSE_DIR "/home/hug/workspace/software/argparse" CACHE PATH "argparse 库的路径")
+# set(SimpleITK_DIR "/home/hug/workspace/software/SimpleITK-build/SimpleITK-build" CACHE PATH "SimpleITK 配置目录")
+# set(ITK_DIR "/home/hug/workspace/software/SimpleITK-build/ITK-build" CACHE PATH "ITK 配置目录")
+# find_package(SimpleITK REQUIRED)
 
 # 包含目录
 include_directories(
     ${OpenCV_INCLUDE_DIRS}
     ${CUDA_INCLUDE_DIRS}
     ${HDF5_INCLUDE_DIRS}
+    ${MPI_CXX_INCLUDE_PATH}
     ${GSL_INCLUDE_DIRS}
-    /home/hug/workspace/software/argparse/include
-    ../include
+    ${ARGPARSE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/../include
 )
 
 # 定义源文件
 set(CPP_SRCS
-    test_sitk.cpp
+    test_dftregist.cpp
     ../src/math_utils.cpp
     ../src/imageio_utils.cpp
     ../src/ProjectionSolver.cpp
+    ../src/registration.cpp
 )
 
 set(CUDA_SRCS
@@ -50,10 +57,10 @@ target_link_libraries(${PROJECT_NAME}
     ${OpenCV_LIBS}
     ${CUDA_LIBRARIES}
     ${CUDA_cufft_LIBRARY}
+    ${MPI_CXX_LIBRARIES}
     ${CUDA_nppidei_LIBRARY}
     ${CUDA_nppc_LIBRARY}
-    ${HDF5_CXX_LIBRARIES}
     ${HDF5_LIBRARIES}
-    ${SimpleITK_LIBRARIES}
+    # ${SimpleITK_LIBRARIES}
     ${GSL_LIBRARIES}
 )

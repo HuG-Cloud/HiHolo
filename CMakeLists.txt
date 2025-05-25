@@ -16,6 +16,7 @@ set(ITK_DIR "/home/hug/workspace/software/SimpleITK-build/ITK-build" CACHE PATH 
 # 查找必要的包
 find_package(OpenCV REQUIRED COMPONENTS core imgproc highgui imgcodecs)
 find_package(CUDA REQUIRED)
+find_package(MPI REQUIRED)
 find_package(GSL REQUIRED)
 find_package(HDF5 REQUIRED)
 find_package(SimpleITK REQUIRED)
@@ -28,6 +29,7 @@ include_directories(
     ${GSL_INCLUDE_DIRS}
     ${ARGPARSE_DIR}/include
     ${CMAKE_SOURCE_DIR}/include
+    ${MPI_CXX_INCLUDE_PATH}
 )
 
 # 定义公共源文件
@@ -52,7 +54,8 @@ set(APP_TARGETS
     holo_recons_ctf_angles
     holo_recons_ite_angles
     holo_distance_calibr
-    holo_registration
+    holo_data_preprocess
+    holo_data_prepro_angles
 )
 
 # 为每个应用程序创建可执行文件
@@ -61,7 +64,8 @@ add_executable(holo_recons_ctf examples/arg_recons_ctf.cpp ${COMMON_CPP_SRCS} ${
 add_executable(holo_recons_ctf_angles examples/arg_recons_ctf_angles.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
 add_executable(holo_recons_ite_angles examples/arg_recons_ite_angles.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
 add_executable(holo_distance_calibr examples/arg_distance_calibr.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
-add_executable(holo_registration examples/arg_holo_reg.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
+add_executable(holo_data_preprocess examples/arg_data_prepro.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
+add_executable(holo_data_prepro_angles examples/arg_prepro_angles.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
 
 # 定义公共链接库
 set(COMMON_LIBS
@@ -73,9 +77,16 @@ set(COMMON_LIBS
     ${HDF5_LIBRARIES}
     ${SimpleITK_LIBRARIES}
     ${GSL_LIBRARIES}
+    ${MPI_CXX_LIBRARIES}
 )
 
 # 为每个应用程序链接库
 foreach(target ${APP_TARGETS})
     target_link_libraries(${target} ${COMMON_LIBS})
+    # 添加MPI编译定义
+    target_compile_definitions(${target} PRIVATE ${MPI_CXX_COMPILE_DEFINITIONS})
+    # 添加MPI编译选项
+    target_compile_options(${target} PRIVATE ${MPI_CXX_COMPILE_OPTIONS})
+    # 添加MPI链接选项
+    target_link_options(${target} PRIVATE ${MPI_CXX_LINK_FLAGS})
 endforeach()

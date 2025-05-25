@@ -1,10 +1,12 @@
 #ifndef IMAGEIO_UTILS_H_
 #define IMAGEIO_UTILS_H_
 
-#include <hdf5.h>
-#include <gsl/gsl_fit.h>
-#include <opencv2/opencv.hpp>
 #include <SimpleITK.h>
+#include <opencv2/opencv.hpp>
+#include <gsl/gsl_fit.h>
+#include <hdf5.h>
+#include <mpi.h>
+
 #include "datatypes.h"
 #include "math_utils.h"
 
@@ -14,6 +16,7 @@ namespace ImageUtils
 {   
     // Construct a vector containing multidistance cv::Mats from a complete set of data
     std::vector<cv::Mat> convertVecToMats(const U16Array &data, int numImages, int rows, int cols);
+    std::vector<cv::Mat> convertVecToMats(const FArray &data, int numImages, int rows, int cols);
     cv::Mat convertVecToMat(const U16Array &data, int rows, int cols);
     FArray convertMatsToVec(const std::vector<cv::Mat> &mats);
     void convertVecToImgs(float *data, std::vector<itk::simple::Image> &images, int rows, int cols);
@@ -36,22 +39,25 @@ namespace ImageUtils
 }
 
 namespace IOUtils
-{   
+{
     bool readRawData(const std::string &filename, const std::vector<std::string> &datasetNames,
                      std::vector<hsize_t> &dims, U16Array &data, U16Array &dark, U16Array &flat);
+    bool readDataDims(const std::string &filename, const std::string &datasetName, std::vector<hsize_t> &dims, MPI_Comm comm);
     bool readDataDims(const std::string &filename, const std::string &datasetName, std::vector<hsize_t> &dims);
-    bool readPhasegrams(const std::string &filename, const std::string &datasetName, FArray &phase, std::vector<hsize_t> &dims);
-    bool readSingleGram(const std::string &filename, const std::string &datasetName, U16Array &phase, std::vector<hsize_t> &dims);
+    bool readPhaseGram(const std::string &filename, const std::string &datasetName, FArray &phase, std::vector<hsize_t> &dims);
+    bool readSingleGram(const std::string &filename, const std::string &datasetName, U16Array &data, std::vector<hsize_t> &dims, MPI_Comm comm);
     bool readProcessedGrams(const std::string &filename, const std::string &datasetName, FArray &holograms, std::vector<hsize_t> &dims);
-    bool saveProcessedGrams(const std::string &filename, const std::string &datasetName, const FArray &processedGrams, int numImages, int rows, int cols);
-    bool savePhasegrams(const std::string &filename, const std::string &datasetName, const FArray &reconsPhase, int rows, int cols);
+    bool savePhaseGram(const std::string &filename, const std::string &datasetName, const FArray &reconsPhase, int rows, int cols);
     bool save3DGrams(const std::string &filename, const std::string &datasetName, const FArray &registeredGrams, int numImages, int rows, int cols);
-    bool read3DimData(const std::string &filename, const std::string &datasetName, FArray &data, hsize_t offset, hsize_t count);
-    bool read4DimData(const std::string &filename, const std::string &datasetName, FArray &data, hsize_t offset, hsize_t count);
-    bool read4DimData(const std::string &filename, const std::string &datasetName, U16Array &data, hsize_t offset, hsize_t count);
-    bool createFileDataset(const std::string &filename, const std::string &datasetName, const std::vector<hsize_t> &dims);
-    bool write3DimData(const std::string &filename, const std::string &datasetName, const FArray &data, const std::vector<hsize_t> &dims, hsize_t offset);
-    bool write4DimData(const std::string &filename, const std::string &datasetName, const FArray &data, const std::vector<hsize_t> &dims, hsize_t offset);
+    bool read3DimData(const std::string &filename, const std::string &datasetName, FArray &data, hsize_t offset, hsize_t count, MPI_Comm comm);
+    bool read4DimData(const std::string &filename, const std::string &datasetName, FArray &data, hsize_t offset, hsize_t count, MPI_Comm comm); 
+    bool read4DimData(const std::string &filename, const std::string &datasetName, U16Array &data, hsize_t offset, hsize_t count, MPI_Comm comm);
+    bool createFileDataset(const std::string &filename, const std::string &datasetName, const std::vector<hsize_t> &dims, MPI_Comm comm);
+    
+    bool write3DimData(const std::string &filename, const std::string &datasetName, const FArray &data,
+                       const std::vector<hsize_t> &dims, hsize_t offset, MPI_Comm comm);
+    bool write4DimData(const std::string &filename, const std::string &datasetName, const FArray &data,
+                       const std::vector<hsize_t> &dims, hsize_t offset, MPI_Comm comm);
     bool saveImage(const std::string &filename, const FArray &image, int rows, int cols);
 }
 

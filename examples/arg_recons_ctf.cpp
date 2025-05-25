@@ -88,6 +88,9 @@ int main(int argc, char* argv[])
     float highFreqLim = program.get<float>("-H");
 
     std::vector<std::string> outputs = program.get<std::vector<std::string>>("-O");
+    if (outputs[0] == inputs[0]) {
+        throw std::runtime_error("Input and output files cannot be the same!");
+    }
        
     auto start = std::chrono::high_resolution_clock::now();    
     FArray phase = PhaseRetrieval::reconstruct_ctf(holograms, numHolograms, imSize, fresnelNumbers, lowFreqLim,
@@ -99,7 +102,7 @@ int main(int argc, char* argv[])
     F2DArray result {phase};
     // Display the phase result and save to HDF5 file
     ImageUtils::displayPhase(result[0], imSize[0], imSize[1], "phase");
-    IOUtils::savePhasegrams(outputs[0], outputs[1], result[0], imSize[0], imSize[1]);
+    IOUtils::savePhaseGram(outputs[0], outputs[1], result[0], imSize[0], imSize[1]);
 
     return 0;
 }

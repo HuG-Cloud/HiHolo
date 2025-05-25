@@ -6,6 +6,11 @@
 
 int main(int argc, char* argv[])
 {
+    MPI_Init(&argc, &argv);
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
     argparse::ArgumentParser program("holo_recons_ctf_angles");
     program.set_usage_max_line_width(120);
 
@@ -26,6 +31,10 @@ int main(int argc, char* argv[])
            .help("list of fresnel numbers corresponding to holograms")
            .required().nargs(argparse::nargs_pattern::at_least_one)
            .scan<'g', float>();
+
+    program.add_argument("--device_numbers", "-d")
+           .help("number of GPUs to use [default: all GPU resources]")
+           .scan<'i', int>();
 
     program.add_argument("--ratio", "-r")
            .help("fixed ratio between absorption and phase shifts")
@@ -56,13 +65,31 @@ int main(int argc, char* argv[])
     } catch (const std::runtime_error& err) {
         std::cerr << err.what() << std::endl;
         std::cerr << program;
+        MPI_Finalize();
         return 1;
     }
+
+    int deviceCount;
+    cudaError_t error = cudaGetDeviceCount(&deviceCount);
+    if (error != cudaSuccess || deviceCount == 0) {
+        throw std::runtime_error("No CUDA capable GPU device found!");
+    }
+
+    int devices = deviceCount;
+    if (program.is_used("-d")) {
+        devices = program.get<int>("-d");
+        if (devices > deviceCount || devices <= 0) {
+            throw std::runtime_error("Invalid number of GPUs to use!");
+        }
+    }
+
+    int deviceId = rank % devices;
+    cudaSetDevice(deviceId);
 
     // Read holograms and image size from user inputs
     std::vector<hsize_t> dims;
     std::vector<std::string> inputs = program.get<std::vector<std::string>>("-I");
-    IOUtils::readDataDims(inputs[0], inputs[1], dims);
+    IOUtils::readDataDims(inputs[0], inputs[1], dims, MPI_COMM_WORLD);
     if (dims.size() != 4) {
         std::cerr << "Error: Input data must have 4 dimensions" << std::endl;
         return 1;
@@ -74,7 +101,14 @@ int main(int argc, char* argv[])
     int cols = static_cast<int>(dims[3]);
     IntArray imSize {rows, cols};
 
+    // Each process handles the same number of angles
+    int numAngles = totalAngles / size;
+    int startAngle = rank * numAngles;
     int batchSize = program.get<int>("-b");
+    batchSize = std::min(batchSize, numAngles);
+    if (numAngles % batchSize != 0) {
+        throw std::runtime_error("Number of angles must be divisible by batch size!");
+    }
     FArray holograms(batchSize * numHolograms * rows * cols);
 
     auto fresnel_input = program.get<FArray>("-f");
@@ -99,25 +133,41 @@ int main(int argc, char* argv[])
     float highFreqLim = program.get<float>("-H");
 
     std::vector<std::string> outputs = program.get<std::vector<std::string>>("-O");
+    if (outputs[0] == inputs[0]) {
+       throw std::runtime_error("Input and output files cannot be the same!");
+    }
     std::vector<hsize_t> outputDims {dims[0], dims[2], dims[3]};
-    IOUtils::createFileDataset(outputs[0], outputs[1], outputDims);
 
     auto reconstructor = new PhaseRetrieval::CTFReconstructor(batchSize, numHolograms, imSize, fresnelNumbers,
                                                               lowFreqLim, highFreqLim, ratio, padSize, padType, padValue);
+    
+    // Create output dataset before processing
+    if(!IOUtils::createFileDataset(outputs[0], outputs[1], outputDims, MPI_COMM_WORLD)) {
+        throw std::runtime_error("Failed to create output file or dataset!");
+    }  
     auto start = std::chrono::high_resolution_clock::now();    
 
-    for (int i = 0; i < totalAngles; i += batchSize) {
-       std::cout << "Processing batch " << i / batchSize << std::endl;
-       IOUtils::read4DimData(inputs[0], inputs[1], holograms, i, batchSize);
+    for (int i = 0; i < numAngles / batchSize; i++) {
+       if (rank == 0) {
+           std::cout << "Processing batch " << i + 1 << "/" << numAngles / batchSize << std::endl;
+       }
+       int globalIndex = startAngle + i * batchSize;
+       IOUtils::read4DimData(inputs[0], inputs[1], holograms, globalIndex, batchSize, MPI_COMM_WORLD);
        auto result = reconstructor->reconsBatch(holograms);
-       IOUtils::write3DimData(outputs[0], outputs[1], result, outputDims, i);
+       IOUtils::write3DimData(outputs[0], outputs[1], result, outputDims, globalIndex, MPI_COMM_WORLD);
+    }
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto end = std::chrono::high_resolution_clock::now();
+
+    if (rank == 0) {
+        std::cout << "Finished CTF reconstruction for " << totalAngles << " angles on " << devices << " GPUs!" << std::endl;
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+        std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
-
     delete reconstructor;
+    MPI_Finalize();
 
     return 0;
 }

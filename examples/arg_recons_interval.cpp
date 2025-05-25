@@ -130,7 +130,7 @@ int main(int argc, char* argv[])
     std::vector<std::string> input_phase;
     if (program.is_used("-G")) {
        input_phase = program.get<std::vector<std::string>>("-G");
-       IOUtils::readPhasegrams(input_phase[0], input_phase[1], initialPhase, dims);
+       IOUtils::readPhaseGram(input_phase[0], input_phase[1], initialPhase, dims);
        if (initialPhase.empty()) {
             throw std::runtime_error("Invalid initial phase or dimensions!");
        }
@@ -203,7 +203,7 @@ int main(int argc, char* argv[])
 
        if (program.is_used("-g")) {
            input_phase = program.get<std::vector<std::string>>("-g");
-           IOUtils::readPhasegrams(input_phase[0], input_phase[1], initProbePhase, dims);
+           IOUtils::readPhaseGram(input_phase[0], input_phase[1], initProbePhase, dims);
            if (initProbePhase.empty()) {
                 throw std::runtime_error("Invalid initial probe phase or dimensions!");
            }
@@ -302,7 +302,10 @@ int main(int argc, char* argv[])
     }
 
     std::vector<std::string> outputs = program.get<std::vector<std::string>>("-O");
-    IOUtils::savePhasegrams(outputs[0], outputs[1], result[0], imSize[0], imSize[1]);
+    if (outputs[0] == inputs[0]) {
+        throw std::runtime_error("Input and output files cannot be the same!");
+    }
+    IOUtils::savePhaseGram(outputs[0], outputs[1], result[0], imSize[0], imSize[1]);
 
     return 0;
 }

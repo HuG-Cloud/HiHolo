@@ -6,6 +6,12 @@
 
 int main(int argc, char* argv[])
 {
+    // Initialize MPI
+    MPI_Init(&argc, &argv);
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
     argparse::ArgumentParser program("data_prepro_angles");
     program.set_usage_max_line_width(120);
 
@@ -51,15 +57,16 @@ int main(int argc, char* argv[])
     } catch (const std::runtime_error& err) {
         std::cerr << err.what() << std::endl;
         std::cerr << program;
+        MPI_Finalize();
         return 1;
     }
 
     std::vector<hsize_t> dims;
     std::string input = program.get<std::string>("-i");
     U16Array dark, flat;
-    IOUtils::readSingleGram(input, "dark", dark, dims);
-    IOUtils::readSingleGram(input, "flat", flat, dims);
-    IOUtils::readDataDims(input, "data", dims);
+    IOUtils::readSingleGram(input, "dark", dark, dims, MPI_COMM_WORLD);
+    IOUtils::readSingleGram(input, "flat", flat, dims, MPI_COMM_WORLD);
+    IOUtils::readDataDims(input, "data", dims, MPI_COMM_WORLD);
     if (dims.size() != 4) {
         throw std::runtime_error("Invalid holograms or dimensions!");
     }
@@ -70,7 +77,14 @@ int main(int argc, char* argv[])
     int cols = static_cast<int>(dims[3]);
     IntArray imSize {rows, cols};
     
+    // Each process handles the same number of angles
+    int numAngles = totalAngles / size;
+    int startAngle = rank * numAngles;
     int batchSize = program.get<int>("-b");
+    batchSize = std::min(batchSize, numAngles);
+    if (numAngles % batchSize != 0) {
+        throw std::runtime_error("Number of angles must be divisible by batch size!");
+    }
     U16Array rawData(batchSize * numHolograms * rows * cols);
 
     int kernelSize = program.get<int>("-k");
@@ -84,24 +98,35 @@ int main(int argc, char* argv[])
     if (input == output) {
         throw std::runtime_error("Input and output file cannot be the same!");
     }
-    IOUtils::createFileDataset(output, "holodata", dims);
 
     auto preprocessor = PhaseRetrieval::Preprocessor(batchSize, numHolograms, imSize, dark, flat,
                                                      kernelSize, threshold, rangeRows, rangeCols,
                                                      movmeanSize, method);
-    FArray holograms;
+    
+    if(!IOUtils::createFileDataset(output, "holodata", dims, MPI_COMM_WORLD)) {
+        throw std::runtime_error("Failed to create output file or dataset!");
+    }
     auto start = std::chrono::high_resolution_clock::now();
 
-    for (int i = 0; i < totalAngles / batchSize; i++) {
-       std::cout << "Processing batch " << i << std::endl;
-       IOUtils::read4DimData(input, "data", rawData, i * batchSize, batchSize);
-       holograms = preprocessor.processBatch(rawData);
-       IOUtils::write4DimData(output, "holodata", holograms, dims, i * batchSize);
+    for (int i = 0; i < numAngles / batchSize; i++) {
+       if (rank == 0) {
+          std::cout << "Processing batch " << i + 1 << "/" << numAngles / batchSize << std::endl;
+       }
+       int globalIndex = startAngle + i * batchSize;
+       IOUtils::read4DimData(input, "data", rawData, globalIndex, batchSize, MPI_COMM_WORLD);
+       auto holograms = preprocessor.processBatch(rawData);
+       IOUtils::write4DimData(output, "holodata", holograms, dims, globalIndex, MPI_COMM_WORLD);
     }
-        
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::cout << "Elapsed time: " << duration.count() << " milliseconds" << std::endl;
 
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto end = std::chrono::high_resolution_clock::now();
+    
+    if (rank == 0) {
+        std::cout << "Finished data preprocessing for " << totalAngles << " angles!" << std::endl;
+        auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
+        std::cout << "Elapsed time: " << duration.count() << " seconds" << std::endl;
+    }
+
+    MPI_Finalize();
     return 0;
 }
