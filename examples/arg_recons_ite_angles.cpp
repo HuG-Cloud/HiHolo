@@ -1,8 +1,8 @@
 #include <argparse/argparse.hpp>
 #include <chrono>
-#include <iostream>
 
 #include "holo_recons.h"
+#include "io_utils.h"
 
 int main(int argc, char* argv[])
 {
@@ -238,7 +238,9 @@ int main(int argc, char* argv[])
     if(!IOUtils::createFileDataset(outputs[0], outputs[1], outputDims, MPI_COMM_WORLD)) {
         throw std::runtime_error("Failed to create output file or dataset!");
     }
-    auto start = std::chrono::high_resolution_clock::now();
+
+    auto totalStart = std::chrono::high_resolution_clock::now();
+    auto totalComputeTime = std::chrono::duration<double>::zero();
 
     for (int i = 0; i < numAngles / batchSize; i++) {
        if (rank == 0) {
@@ -249,17 +251,23 @@ int main(int argc, char* argv[])
        if (!initialPhase.empty()) {
            IOUtils::read3DimData(inputPhase[0], inputPhase[1], initialPhase, globalIndex, batchSize, MPI_COMM_WORLD);
        }
+       
+       auto start = std::chrono::high_resolution_clock::now();
        auto result = reconstructor.reconsBatch(holograms, initialPhase);
+       auto end = std::chrono::high_resolution_clock::now();
+       totalComputeTime += std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+
        IOUtils::write3DimData(outputs[0], outputs[1], result, outputDims, globalIndex, MPI_COMM_WORLD);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
-    auto end = std::chrono::high_resolution_clock::now();
+    auto totalEnd = std::chrono::high_resolution_clock::now();
 
     if (rank == 0) {
         std::cout << "Finished phase retrieval for " << totalAngles << " angles on " << devices << " GPUs" << std::endl;
-        auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
-        std::cout << "Elapsed time: " << duration.count() << " seconds" << std::endl;
+        auto totalDuration = std::chrono::duration_cast<std::chrono::duration<double>>(totalEnd - totalStart);
+        std::cout << "Total computation time: " << totalComputeTime.count() << " seconds" << std::endl;
+        std::cout << "Total elapsed time: " << totalDuration.count() << " seconds" << std::endl;
     }
 
     MPI_Finalize();

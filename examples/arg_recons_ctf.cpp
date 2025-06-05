@@ -1,8 +1,7 @@
 #include <argparse/argparse.hpp>
 #include <chrono>
-#include <iostream>
-
 #include "holo_recons.h"
+#include "io_utils.h"
 
 int main(int argc, char* argv[])
 {
@@ -74,7 +73,7 @@ int main(int argc, char* argv[])
 
     float ratio = program.get<float>("-r");
 
-    IntArray padSize;
+    IntArray padSize; 
     CUDAUtils::PaddingType padType;
     float padValue;    
     if (program.is_used("-S")) {

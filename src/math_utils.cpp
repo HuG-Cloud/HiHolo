@@ -3,6 +3,7 @@
 
 const std::complex<float> i_c = std::complex<float>(0, 1);
 const uint16_t maxUInt_16 = std::numeric_limits<uint16_t>::max();
+const uint32_t maxUInt_32 = std::numeric_limits<uint32_t>::max();
 const float FloatInf = std::numeric_limits<float>::infinity();
 
 FArray MathUtils::genEquidisRange(float start, float end, int n)

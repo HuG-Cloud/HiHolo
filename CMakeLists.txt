@@ -14,7 +14,7 @@ find_package(CUDA REQUIRED)
 find_package(MPI REQUIRED)
 find_package(GSL REQUIRED)
 find_package(HDF5 REQUIRED)
-find_package(SimpleITK REQUIRED)
+#find_package(SimpleITK REQUIRED)
 
 # 包含目录
 include_directories(
@@ -30,7 +30,8 @@ include_directories(
 # 定义公共源文件
 set(COMMON_CPP_SRCS
     src/math_utils.cpp
-    src/imageio_utils.cpp
+    src/image_utils.cpp
+    src/io_utils.cpp
     src/ProjectionSolver.cpp
 )
 
@@ -49,8 +50,8 @@ set(APP_TARGETS
     holo_recons_ctf_angles
     holo_recons_ite_angles
     holo_distance_calibr
-    holo_data_preprocess
-    holo_data_prepro_angles
+    #holo_data_preprocess
+    #holo_data_prepro_angles
 )
 
 # 为每个应用程序创建可执行文件
@@ -59,8 +60,8 @@ add_executable(holo_recons_ctf examples/arg_recons_ctf.cpp ${COMMON_CPP_SRCS} ${
 add_executable(holo_recons_ctf_angles examples/arg_recons_ctf_angles.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
 add_executable(holo_recons_ite_angles examples/arg_recons_ite_angles.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
 add_executable(holo_distance_calibr examples/arg_distance_calibr.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
-add_executable(holo_data_preprocess examples/arg_data_prepro.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
-add_executable(holo_data_prepro_angles examples/arg_prepro_angles.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
+#add_executable(holo_data_preprocess examples/arg_data_prepro.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
+#add_executable(holo_data_prepro_angles examples/arg_prepro_angles.cpp ${COMMON_CPP_SRCS} ${COMMON_CUDA_SRCS})
 
 # 定义公共链接库
 set(COMMON_LIBS

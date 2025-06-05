@@ -2,12 +2,12 @@
 #define HOLO_RECONS_H_
 
 #include "ProjectionSolver.h"
-#include "imageio_utils.h"
+#include "image_utils.h"
 
 namespace PhaseRetrieval
 {   
-    F2DArray preprocess_data(const U16Array &rawData, const U16Array &dark, const U16Array &flat, int numImages, const IntArray &imSize, bool isAPWP = false,
-                             int kernelSize = 3, float threshold = 2.0f, int rangeRows = 0, int rangeCols = 0, int movmeanSize = 5, const std::string &method = "mul");
+    // F2DArray preprocess_data(const U16Array &rawData, const U16Array &dark, const U16Array &flat, int numImages, const IntArray &imSize, bool isAPWP = false,
+    //                          int kernelSize = 3, float threshold = 2.0f, int rangeRows = 0, int rangeCols = 0, int movmeanSize = 5, const std::string &method = "mul");
 
     F2DArray reconstruct_iter(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelNumbers, int iterations, const FArray &initialPhase,
                               ProjectionSolver::Algorithm algorithm, const FArray &algoParameters, float minPhase, float maxPhase, float minAmplitude, float maxAmplitude,
@@ -21,31 +21,31 @@ namespace PhaseRetrieval
     FArray reconstruct_ctf(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelnumbers, float lowFreqLim, float highFreqLim,
                            float betaDeltaRatio, const IntArray &padSize, CUDAUtils::PaddingType padType, float padValue);
 
-    class Preprocessor
-    {
-        private:
-            int batchSize;
-            int numImages;
-            IntArray imSize;
-            FArray holograms;
-            std::vector<cv::Mat> holoMats;
-            std::vector<itk::simple::Image> holoImages;
-            cv::Mat darkMat;
-            cv::Mat flatMat;
+    // class Preprocessor
+    // {
+    //     private:
+    //         int batchSize;
+    //         int numImages;
+    //         IntArray imSize;
+    //         FArray holograms;
+    //         std::vector<cv::Mat> holoMats;
+    //         std::vector<itk::simple::Image> holoImages;
+    //         cv::Mat darkMat;
+    //         cv::Mat flatMat;
 
-            int kernelSize;
-            float threshold;
-            int rangeRows;
-            int rangeCols;
-            int movmeanSize;
-            std::string method;
+    //         int kernelSize;
+    //         float threshold;
+    //         int rangeRows;
+    //         int rangeCols;
+    //         int movmeanSize;
+    //         std::string method;
 
-        public:
-            Preprocessor(int batchsize, int numimages, const IntArray &imsize, const U16Array &dark, const U16Array &flat, int kernelsize,
-                         float in_threshold, int rangerows, int rangecols, int movmeansize, const std::string &in_method);
-            FArray processBatch(const U16Array &rawData);
-            ~Preprocessor() = default;
-    };
+    //     public:
+    //         Preprocessor(int batchsize, int numimages, const IntArray &imsize, const U16Array &dark, const U16Array &flat, int kernelsize,
+    //                      float in_threshold, int rangerows, int rangecols, int movmeansize, const std::string &in_method);
+    //         FArray processBatch(const U16Array &rawData);
+    //         ~Preprocessor() = default;
+    // };
 
     class CTFReconstructor
     {

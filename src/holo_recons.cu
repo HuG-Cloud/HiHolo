@@ -2,92 +2,92 @@
 
 namespace PhaseRetrieval
 {
-    F2DArray preprocess_data(const U16Array &rawData, const U16Array &dark, const U16Array &flat, int numImages, const IntArray &imSize,
-                             bool isAPWP, int kernelSize, float threshold, int rangeRows, int rangeCols, int movmeanSize, const std::string &method)
-    {
-        // Convert detector data vector(uint16) to cv::Mats(float) and remove outliers
-        std::vector<cv::Mat> holoMats = ImageUtils::convertVecToMats(rawData, numImages, imSize[0], imSize[1]);
-        cv::Mat darkMat = ImageUtils::convertVecToMat(dark, imSize[0], imSize[1]);
-        std::vector<cv::Mat> probeMats;
-        if (isAPWP) {
-            probeMats = ImageUtils::convertVecToMats(flat, numImages, imSize[0], imSize[1]);
-        } else {
-            probeMats.push_back(ImageUtils::convertVecToMat(flat, imSize[0], imSize[1]));
-        }
+    // F2DArray preprocess_data(const U16Array &rawData, const U16Array &dark, const U16Array &flat, int numImages, const IntArray &imSize,
+    //                          bool isAPWP, int kernelSize, float threshold, int rangeRows, int rangeCols, int movmeanSize, const std::string &method)
+    // {
+    //     // Convert detector data vector(uint16) to cv::Mats(float) and remove outliers
+    //     std::vector<cv::Mat> holoMats = ImageUtils::convertVecToMats(rawData, numImages, imSize[0], imSize[1]);
+    //     cv::Mat darkMat = ImageUtils::convertVecToMat(dark, imSize[0], imSize[1]);
+    //     std::vector<cv::Mat> probeMats;
+    //     if (isAPWP) {
+    //         probeMats = ImageUtils::convertVecToMats(flat, numImages, imSize[0], imSize[1]);
+    //     } else {
+    //         probeMats.push_back(ImageUtils::convertVecToMat(flat, imSize[0], imSize[1]));
+    //     }
 
-        for (int i = 0; i < numImages; i++) {
-            ImageUtils::removeOutliers(holoMats[i], kernelSize, threshold);
-        }
-        ImageUtils::removeOutliers(darkMat, kernelSize, threshold);
-        for (int i = 0; i < probeMats.size(); i++) {
-            ImageUtils::removeOutliers(probeMats[i], kernelSize, threshold);
-        }
+    //     for (int i = 0; i < numImages; i++) {
+    //         ImageUtils::removeOutliers(holoMats[i], kernelSize, threshold);
+    //     }
+    //     ImageUtils::removeOutliers(darkMat, kernelSize, threshold);
+    //     for (int i = 0; i < probeMats.size(); i++) {
+    //         ImageUtils::removeOutliers(probeMats[i], kernelSize, threshold);
+    //     }
 
-        /* (data - dark) ./ flat */
-        if (isAPWP) {
-            for (int i = 0; i < numImages; i++) {
-                holoMats[i] -= darkMat;
-            }
-        } else {
-            for (int i = 0; i < numImages; i++) {
-                holoMats[i] = (holoMats[i] - darkMat) / probeMats[0];
-            }
-        }
+    //     /* (data - dark) ./ flat */
+    //     if (isAPWP) {
+    //         for (int i = 0; i < numImages; i++) {
+    //             holoMats[i] -= darkMat;
+    //         }
+    //     } else {
+    //         for (int i = 0; i < numImages; i++) {
+    //             holoMats[i] = (holoMats[i] - darkMat) / probeMats[0];
+    //         }
+    //     }
 
-        for (auto &mat: holoMats) {
-            ImageUtils::removeStripes(mat, rangeRows, rangeCols, movmeanSize, method);
-        }
+    //     for (auto &mat: holoMats) {
+    //         ImageUtils::removeStripes(mat, rangeRows, rangeCols, movmeanSize, method);
+    //     }
 
-        std::vector<itk::simple::Image> holoImages(numImages);
-        ImageUtils::convertMatsToImgs(holoMats, holoImages, imSize[0], imSize[1]);
-        for (int i = 1; i < numImages; i++) {
-            ImageUtils::registerImage(holoImages[0], holoImages[i]);
-        }
+    //     std::vector<itk::simple::Image> holoImages(numImages);
+    //     ImageUtils::convertMatsToImgs(holoMats, holoImages, imSize[0], imSize[1]);
+    //     for (int i = 1; i < numImages; i++) {
+    //         ImageUtils::registerImage(holoImages[0], holoImages[i]);
+    //     }
 
-        FArray holograms(numImages * imSize[0] * imSize[1]);
-        ImageUtils::convertImgsToVec(holoImages, holograms.data(), imSize[0], imSize[1]);
-        F2DArray result {holograms};
+    //     FArray holograms(numImages * imSize[0] * imSize[1]);
+    //     ImageUtils::convertImgsToVec(holoImages, holograms.data(), imSize[0], imSize[1]);
+    //     F2DArray result {holograms};
 
-        if (isAPWP) {
-            FArray probes = ImageUtils::convertMatsToVec(probeMats);
-            result.push_back(probes);
-        }
+    //     if (isAPWP) {
+    //         FArray probes = ImageUtils::convertMatsToVec(probeMats);
+    //         result.push_back(probes);
+    //     }
 
-        return result;
-    }
+    //     return result;
+    // }
 
-    Preprocessor::Preprocessor(int batchsize, int numimages, const IntArray &imsize,  const U16Array &dark, const U16Array &flat, int kernelsize, float in_threshold,
-                               int rangerows, int rangecols, int movmeansize, const std::string &in_method): batchSize(batchsize), numImages(numimages), imSize(imsize),
-                               kernelSize(kernelsize), threshold(in_threshold), rangeRows(rangerows), rangeCols(rangecols), movmeanSize(movmeansize), method(in_method)
-    {
-        holograms.resize(batchSize * numImages * imSize[0] * imSize[1]);
-        darkMat = ImageUtils::convertVecToMat(dark, imSize[0], imSize[1]);
-        flatMat = ImageUtils::convertVecToMat(flat, imSize[0], imSize[1]);
-        holoImages.resize(batchSize * numImages);
+    // Preprocessor::Preprocessor(int batchsize, int numimages, const IntArray &imsize,  const U16Array &dark, const U16Array &flat, int kernelsize, float in_threshold,
+    //                            int rangerows, int rangecols, int movmeansize, const std::string &in_method): batchSize(batchsize), numImages(numimages), imSize(imsize),
+    //                            kernelSize(kernelsize), threshold(in_threshold), rangeRows(rangerows), rangeCols(rangecols), movmeanSize(movmeansize), method(in_method)
+    // {
+    //     holograms.resize(batchSize * numImages * imSize[0] * imSize[1]);
+    //     darkMat = ImageUtils::convertVecToMat(dark, imSize[0], imSize[1]);
+    //     flatMat = ImageUtils::convertVecToMat(flat, imSize[0], imSize[1]);
+    //     holoImages.resize(batchSize * numImages);
 
-        ImageUtils::removeOutliers(darkMat, kernelSize, threshold);
-        ImageUtils::removeOutliers(flatMat, kernelSize, threshold);
-    }
+    //     ImageUtils::removeOutliers(darkMat, kernelSize, threshold);
+    //     ImageUtils::removeOutliers(flatMat, kernelSize, threshold);
+    // }
 
-    FArray Preprocessor::processBatch(const U16Array &rawData)
-    {
-        holoMats = ImageUtils::convertVecToMats(rawData, numImages * batchSize, imSize[0], imSize[1]);
-        for (int i = 0; i < holoMats.size(); i++) {
-            ImageUtils::removeOutliers(holoMats[i], kernelSize, threshold);
-            holoMats[i] = (holoMats[i] - darkMat) / flatMat;
-            ImageUtils::removeStripes(holoMats[i], rangeRows, rangeCols, movmeanSize, method);
-        }
+    // FArray Preprocessor::processBatch(const U16Array &rawData)
+    // {
+    //     holoMats = ImageUtils::convertVecToMats(rawData, numImages * batchSize, imSize[0], imSize[1]);
+    //     for (int i = 0; i < holoMats.size(); i++) {
+    //         ImageUtils::removeOutliers(holoMats[i], kernelSize, threshold);
+    //         holoMats[i] = (holoMats[i] - darkMat) / flatMat;
+    //         ImageUtils::removeStripes(holoMats[i], rangeRows, rangeCols, movmeanSize, method);
+    //     }
 
-        ImageUtils::convertMatsToImgs(holoMats, holoImages, imSize[0], imSize[1]);
-        for (int i = 0; i < batchSize; i++) {
-            for (int j = 1; j < numImages; j++) {
-                ImageUtils::registerImage(holoImages[i * numImages], holoImages[j + i * numImages]);
-            }
-        }
+    //     ImageUtils::convertMatsToImgs(holoMats, holoImages, imSize[0], imSize[1]);
+    //     for (int i = 0; i < batchSize; i++) {
+    //         for (int j = 1; j < numImages; j++) {
+    //             ImageUtils::registerImage(holoImages[i * numImages], holoImages[j + i * numImages]);
+    //         }
+    //     }
 
-        ImageUtils::convertImgsToVec(holoImages, holograms.data(), imSize[0], imSize[1]);
-        return holograms;
-    }
+    //     ImageUtils::convertImgsToVec(holoImages, holograms.data(), imSize[0], imSize[1]);
+    //     return holograms;
+    // }
 
     FArray reconstruct_ctf(const FArray &holograms, int numImages, const IntArray &imSize, const F2DArray &fresnelnumbers, float lowFreqLim,
                            float highFreqLim, float betaDeltaRatio, const IntArray &padSize, CUDAUtils::PaddingType padType, float padValue)

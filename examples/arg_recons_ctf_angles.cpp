@@ -1,8 +1,8 @@
 #include <argparse/argparse.hpp>
 #include <chrono>
-#include <iostream>
 
 #include "holo_recons.h"
+#include "io_utils.h"
 
 int main(int argc, char* argv[])
 {

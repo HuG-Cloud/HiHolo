@@ -3,4 +3,5 @@
 holo_*
 .vscode/
 build*
+*.so
 Documents/

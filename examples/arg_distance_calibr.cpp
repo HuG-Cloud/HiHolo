@@ -2,7 +2,8 @@
 #include <chrono>
 #include <iostream>
 
-#include "imageio_utils.h"
+#include "image_utils.h"
+#include "io_utils.h"
 
 int main(int argc, char* argv[])
 {

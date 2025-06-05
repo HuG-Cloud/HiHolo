@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
     hid_t outDataset = H5Dcreate2(outFile, argv[4], H5T_NATIVE_FLOAT, outSpace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
     // 分批次写入数据
-    const int batchSize = 100;
+    const int batchSize = 10;
     float* outData = new float[batchSize * dims[0] * dims[1] * dims[2]];
     for (int angle = 0; angle < numAngles; angle += batchSize) {
         int currentBatchSize = std::min(batchSize, numAngles - angle);

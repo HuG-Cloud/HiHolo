@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(holo_regist_test LANGUAGES C CXX CUDA)
+project(holo_copying LANGUAGES C CXX CUDA)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -16,11 +16,6 @@ find_package(CUDA REQUIRED)
 find_package(GSL REQUIRED)
 find_package(HDF5 REQUIRED)
 
-set(ARGPARSE_DIR "/home/hug/workspace/software/argparse" CACHE PATH "argparse 库的路径")
-# set(SimpleITK_DIR "/home/hug/workspace/software/SimpleITK-build/SimpleITK-build" CACHE PATH "SimpleITK 配置目录")
-# set(ITK_DIR "/home/hug/workspace/software/SimpleITK-build/ITK-build" CACHE PATH "ITK 配置目录")
-# find_package(SimpleITK REQUIRED)
-
 # 包含目录
 include_directories(
     ${OpenCV_INCLUDE_DIRS}
@@ -28,17 +23,15 @@ include_directories(
     ${HDF5_INCLUDE_DIRS}
     ${MPI_CXX_INCLUDE_PATH}
     ${GSL_INCLUDE_DIRS}
-    ${ARGPARSE_DIR}/include
     ${CMAKE_SOURCE_DIR}/../include
 )
 
 # 定义源文件
 set(CPP_SRCS
-    test_dftregist.cpp
+    copy_holos.cpp
     ../src/math_utils.cpp
     ../src/imageio_utils.cpp
     ../src/ProjectionSolver.cpp
-    ../src/registration.cpp
 )
 
 set(CUDA_SRCS
@@ -61,6 +54,5 @@ target_link_libraries(${PROJECT_NAME}
     ${CUDA_nppidei_LIBRARY}
     ${CUDA_nppc_LIBRARY}
     ${HDF5_LIBRARIES}
-    # ${SimpleITK_LIBRARIES}
     ${GSL_LIBRARIES}
 )
