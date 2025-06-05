@@ -1,4 +1,4 @@
-# HoloTomo_CUDA
+# FastHolo
 ## 项目概述
 
 该项目是一个基于C++/CUDA的全息重建系统，旨在对全息图数据进行预处理、相位恢复和CT重建，服务于Heps的Nano-holotomography实验。项目实现和优化了多种相位恢复算法，包括解析和迭代类型算法，并且性能优异。
