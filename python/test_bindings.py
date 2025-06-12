@@ -5,7 +5,6 @@
 
 import numpy as np
 import sys
-import os
 
 # 尝试导入绑定模块
 try:
@@ -36,21 +35,19 @@ def test_ctf_function():
     rows, cols = 64, 64
     num_images = 2
     
-    # 创建模拟全息图数据 (直接使用Python列表)
+    # 创建模拟全息图数据
     holograms = np.random.random(num_images * rows * cols).astype(np.float32).tolist()
     
-    # 图像尺寸 (直接使用Python列表)
+    # 图像尺寸
     im_size = [rows, cols]
     
     # 菲涅尔数 (每个图像一组，使用嵌套列表)
     fresnel_numbers = [[0.001], [0.002]]
     
-    # 其他参数
     low_freq_lim = 1e-3
     high_freq_lim = 1e-1
     beta_delta_ratio = 0.0
     
-    # 填充参数（可选）
     pad_size = [16, 16]
     pad_type = fastholo.PaddingType.Replicate
     pad_value = 0.0
@@ -62,7 +59,7 @@ def test_ctf_function():
             low_freq_lim, high_freq_lim, beta_delta_ratio,
             pad_size, pad_type, pad_value
         )
-        print(f"✓ CTF重建成功，结果长度: {len(result)}")
+        print(f"✓ CTF重建成功, 结果长度: {len(result)}")
         
     except Exception as e:
         print(f"✗ CTF重建失败: {e}")
@@ -127,9 +124,9 @@ def main():
         success &= test_ctf_reconstructor_class()
         
         if success:
-            print("\n🎉 所有测试通过！Python绑定工作正常。")
+            print("\n🎉 所有测试通过! Python绑定工作正常。")
         else:
-            print("\n⚠️  部分测试失败，请检查CUDA和GPU设置。")
+            print("\n⚠️  部分测试失败, 请检查CUDA和GPU设置。")
             
     except Exception as e:
         print(f"\n❌ GPU相关测试失败: {e}")

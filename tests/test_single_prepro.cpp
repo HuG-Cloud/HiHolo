@@ -1,7 +1,8 @@
-#include <argparse/argparse.hpp>
 #include <chrono>
 #include <iostream>
-#include "holo_recons.h"
+
+#include "io_utils.h"
+#include "image_utils.h"
 
 int main(int argc, char* argv[]) {
     const std::string inputPath1 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board.h5";
@@ -39,7 +40,7 @@ int main(int argc, char* argv[]) {
     FArray holoVec = ImageUtils::convertMatToVec(holoMat);
     //ImageUtils::displayPhase(holoVec, rows, cols, "holoVec");
     IOUtils::save3DGrams(outputPath1, datasetName, holoVec, numImages, rows, cols);
-    IOUtils::saveImage("holo_foot.png", holoVec, rows, cols);
+    ImageUtils::saveImage("holo_board.png", holoVec, rows, cols);
     
     if (isAPWP) {
         FArray probeVec = ImageUtils::convertMatToVec(probeMat);

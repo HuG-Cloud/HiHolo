@@ -1,7 +1,7 @@
-#include <argparse/argparse.hpp>
 #include <chrono>
 #include <iostream>
-#include "holo_recons.h"
+#include "image_utils.h"
+#include "io_utils.h"
 
 int main(int argc, char* argv[]) {
     const std::string inputPath = "/home/hug/Downloads/HoloTomo_Data/tomo_eps_data.hdf5";
@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
     //ImageUtils::removeStripes(holoMat);
     FArray holoVec = ImageUtils::convertMatToVec(holoMat);
     IOUtils::save3DGrams(outputPath, "holodata", holoVec, numImages, rows, cols);
-    IOUtils::saveImage("holo.png", holoVec, rows, cols);
+    ImageUtils::saveImage("holo.png", holoVec, rows, cols);
 
     return 0;
 }

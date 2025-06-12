@@ -3,8 +3,6 @@
 
 #include <vector>
 #include <complex>
-#include <cuComplex.h>
-#include <cuda_runtime.h>
 
 typedef std::vector<int> IntArray;
 

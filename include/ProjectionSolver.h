@@ -1,11 +1,7 @@
 #ifndef PROJECTIONSOLVER_H_
 #define PROJECTIONSOLVER_H_
 
-#include <functional>
-#include <unordered_map>
-
 #include "Projector.h"
-#include "math_utils.h"
 
 struct IterationResult
 {

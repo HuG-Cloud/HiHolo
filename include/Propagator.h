@@ -2,8 +2,6 @@
 #define PROPAGATOR_H_
 
 #include "WaveField.h"
-#include "datatypes.h"
-#include "cuda_utils.h"
 
 class Propagator
 {   

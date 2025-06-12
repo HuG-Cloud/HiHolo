@@ -2,8 +2,6 @@
 #define WAVEFIELD_H_
 
 #include <iostream>
-
-#include "datatypes.h"
 #include "cuda_utils.h"
 
 class WaveField

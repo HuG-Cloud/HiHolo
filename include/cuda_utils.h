@@ -3,12 +3,11 @@
 
 #include <cufft.h>
 #include <cuda_runtime.h>
+#include <cuComplex.h>
 #include <device_launch_parameters.h>
 #include <npp.h>
 #include <thrust/device_ptr.h>
 #include <thrust/reduce.h>
-
-#include "datatypes.h"
 #include "math_utils.h"
 
 class CUFFTUtils

@@ -305,8 +305,10 @@ int main(int argc, char* argv[])
     if (outputs[0] == inputs[0]) {
         throw std::runtime_error("Input and output files cannot be the same!");
     }
+
     IOUtils::savePhaseGram(outputs[0], outputs[1], result[0], imSize[0], imSize[1]);
-    ImageUtils::saveImage("result.png", result[1], imSize[0], imSize[1]);
+    ImageUtils::saveImage("phase.png", result[0], imSize[0], imSize[1]);
+    ImageUtils::saveImage("amplitude.png", result[1], imSize[0], imSize[1]);
 
     return 0;
 }

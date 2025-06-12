@@ -4,9 +4,6 @@
 #include <memory>
 #include <functional>
 #include <unordered_map>
-
-#include "WaveField.h"
-#include "math_utils.h"
 #include "Propagator.h"
 
 struct Projection
