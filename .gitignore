@@ -2,7 +2,8 @@
 *.o
 holo_*
 .vscode/
-build*
+build/
+!build.sh
 *.so
 Documents/
 python/plots/

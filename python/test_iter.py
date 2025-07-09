@@ -56,7 +56,7 @@ def test_reconstruction():
     
     # Reconstruction parameters
     iterations = 300            # Number of iterations
-    plot_interval = 100          # Interval for displaying results
+    plot_interval = 300          # Interval for displaying results
     
     # Initial guess (optional)
     #initial_phase_file = "/home/hug/Downloads/HoloTomo_Data/purephase_ctf_result.h5"
@@ -96,7 +96,7 @@ def test_reconstruction():
     kernel_type = fastholo.PropKernelType.Fourier
     
     # Error calculation
-    calc_error = False
+    calc_error = True
     
     #############################################################
     # End of parameters section
