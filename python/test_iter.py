@@ -39,18 +39,18 @@ def test_reconstruction():
     #############################################################
     
     # Input/output files
-    #input_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_holo.h5"
-    input_file = "/home/hug/Downloads/HoloTomo_Data/holo_data.h5"
+    input_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_holo.h5"
+    #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_data.h5"
     input_dataset = "holodata"
-    #output_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_result.h5"
-    output_file = "/home/hug/Downloads/HoloTomo_Data/result.h5"
+    output_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_result.h5"
+    #output_file = "/home/hug/Downloads/HoloTomo_Data/result.h5"
     output_dataset = "phasedata"
     
     # List of fresnel numbers
     #fresnel_numbers = [[0.0016667], [0.00083333], [0.000483333], [0.000266667]]
     # fresnel_numbers = [[2.906977e-4], [1.453488e-4], [8.4302325e-5], [4.651163e-5]]
-    fresnel_numbers = [[0.003], [0.0015], [0.00087], [0.00039], [0.000216]]
-    # fresnel_numbers = [[2.987065e-4]] # wing of dragonfly
+    # fresnel_numbers = [[0.003], [0.0015], [0.00087], [0.00039], [0.000216]]
+    fresnel_numbers = [[2.987065e-4]] # wing of dragonfly
     # 确保fresnel_numbers的格式正确
     print(f"Using {len(fresnel_numbers)} fresnel numbers: {fresnel_numbers}")
     
@@ -66,7 +66,7 @@ def test_reconstruction():
     initial_phase_dataset = None
     
     # Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 4:APWP, 5:EPI)
-    algorithm = fastholo.Algorithm.APWP
+    algorithm = fastholo.Algorithm.AP
     
     # Algorithm parameters
     if algorithm == fastholo.Algorithm.RAAR:
@@ -78,10 +78,10 @@ def test_reconstruction():
     amp_limits = [0.0, float('inf')]  # [min, max] amplitude
     phase_limits = [-float('inf'), float('inf')]  # [min, max] phase
     support = []  # Support constraint region size
-    outside_value = 1.0  # Value outside support region
+    outside_value = 0.0  # Value outside support region
     
     # Padding
-    pad_size = [100, 100]  # Padding size
+    pad_size = [250, 250]  # Padding size
     pad_type = fastholo.PaddingType.Replicate
     pad_value = 0.0
     
@@ -96,7 +96,7 @@ def test_reconstruction():
     kernel_type = fastholo.PropKernelType.Fourier
     
     # Error calculation
-    calc_error = True
+    calc_error = False
     
     #############################################################
     # End of parameters section
@@ -164,12 +164,11 @@ def test_reconstruction():
             )
             
             # result现在是2D numpy数组的列表：[phase, amplitude, step_errors?, pm_errors?]
-            # 注意：EPI的phase和amplitude尺寸包含padding，比原始图像大
             initial_phase_array = result[0]        
             initial_amplitude_array = result[1]
 
             if calc_error:
-                residuals[0].extend(result[2].tolist()) 
+                residuals[0].extend(result[2].tolist())
                 residuals[1].extend(result[3].tolist())
             
             display_image(result[1], f"Amplitude reconstructed by {(i+1)*plot_interval} iterations")
@@ -217,7 +216,7 @@ def test_reconstruction():
         plt.plot(residuals[0])
         plt.title("Step Error")
         plt.grid(True)
-        
+
         plt.subplot(1, 2, 2)
         plt.plot(residuals[1])
         plt.title("PM Error")
