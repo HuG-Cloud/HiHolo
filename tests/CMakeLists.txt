@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(data_preprocessing LANGUAGES C CXX)
+project(test_calibrate LANGUAGES C CXX)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -25,7 +25,7 @@ include_directories(
 
 # 定义源文件
 set(CPP_SRCS
-    test_single_prepro.cpp
+    test_calibrate.cpp
     ../src/math_utils.cpp
     ../src/image_utils.cpp
     ../src/io_utils.cpp

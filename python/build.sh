@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# Build Python bindings for fastholo
+# Build Python bindings for hiholo
 # chmod +x build.sh && ./build.sh [clean]
 
 set -e
 
-echo "Building fastholo Python bindings..."
+echo "Building hiholo Python bindings..."
 
 if [ "$1" = "clean" ]; then
     echo "Cleaning build files..."
     rm -rf build/
     rm -rf dist/
     rm -rf *.egg-info/
-    rm -rf fastholo*.so
+    rm -rf hiholo*.so
     echo "Clean complete"
     exit 0
 fi
@@ -60,8 +60,8 @@ cd ..
 
 echo "Installing Python module..."
 # Copy compiled module to current directory
-if [ -f build/fastholo*.so ]; then
-    cp build/fastholo*.so ./
+if [ -f build/hiholo*.so ]; then
+    cp build/hiholo*.so ./
     echo "Module copied to current directory"
 else
     echo "Error: Compiled module file not found"
@@ -71,5 +71,5 @@ fi
 echo "Build complete!"
 echo ""
 echo "To test installation in Python:"
-echo "import fastholo"
-echo "print(dir(fastholo))"
+echo "import hiholo"
+echo "print(dir(hiholo))"

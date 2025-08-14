@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(fastholo LANGUAGES CXX CUDA)
+project(hiholo LANGUAGES CXX CUDA)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -65,14 +65,14 @@ set(COMMON_LIBS
 )
 
 target_link_libraries(holo_recons_lib ${COMMON_LIBS})
-pybind11_add_module(fastholo bindings/pybind_wrapper.cpp)
-target_link_libraries(fastholo PRIVATE holo_recons_lib)
+pybind11_add_module(hiholo bindings/pybind_wrapper.cpp)
+target_link_libraries(hiholo PRIVATE holo_recons_lib)
 
 # 编译器特定的定义
-target_compile_definitions(fastholo PRIVATE VERSION_INFO=${PROJECT_VERSION})
+target_compile_definitions(hiholo PRIVATE VERSION_INFO=${PROJECT_VERSION})
 
 # 设置输出属性
-set_target_properties(fastholo PROPERTIES
+set_target_properties(hiholo PROPERTIES
     CXX_VISIBILITY_PRESET "hidden"
     CUDA_VISIBILITY_PRESET "hidden"
 )

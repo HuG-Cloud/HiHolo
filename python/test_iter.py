@@ -1,5 +1,5 @@
 """
-Test script for fastholo with improved Python API.
+Test script for hiholo with improved Python API.
 
 新的 reconstruct_iter API 返回值结构：
 result = [phase_2d, amplitude_2d, probe_phase_2d, step_errors_1d, pm_errors_1d]
@@ -20,7 +20,7 @@ result = [phase_2d, amplitude_2d, step_errors_1d, pm_errors_1d]
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
-import fastholo
+import hiholo
 
 def display_image(phase, title="Phase"):
     """Display image"""
@@ -32,25 +32,25 @@ def display_image(phase, title="Phase"):
     plt.close()
 
 def test_reconstruction():
-    """Test holographic reconstruction with fastholo"""
+    """Test holographic reconstruction with hiholo"""
     
     #############################################################
     # Parameters (modify this section)
     #############################################################
     
     # Input/output files
-    input_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_holo.h5"
-    #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_data.h5"
+    #input_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_holo.h5"
+    input_file = "/home/hug/Downloads/HoloTomo_Data/holo_data.h5"
     input_dataset = "holodata"
-    output_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_result.h5"
-    #output_file = "/home/hug/Downloads/HoloTomo_Data/result.h5"
+    #output_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_result.h5"
+    output_file = "/home/hug/Downloads/HoloTomo_Data/result.h5"
     output_dataset = "phasedata"
     
     # List of fresnel numbers
     #fresnel_numbers = [[0.0016667], [0.00083333], [0.000483333], [0.000266667]]
     # fresnel_numbers = [[2.906977e-4], [1.453488e-4], [8.4302325e-5], [4.651163e-5]]
-    # fresnel_numbers = [[0.003], [0.0015], [0.00087], [0.00039], [0.000216]]
-    fresnel_numbers = [[2.987065e-4]] # wing of dragonfly
+    fresnel_numbers = [[0.003], [0.0015], [0.00087], [0.00039], [0.000216]]
+    #fresnel_numbers = [[2.987065e-4]] # wing of dragonfly
     # 确保fresnel_numbers的格式正确
     print(f"Using {len(fresnel_numbers)} fresnel numbers: {fresnel_numbers}")
     
@@ -66,23 +66,23 @@ def test_reconstruction():
     initial_phase_dataset = None
     
     # Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 4:APWP, 5:EPI)
-    algorithm = fastholo.Algorithm.AP
+    algorithm = hiholo.Algorithm.APWP
     
     # Algorithm parameters
-    if algorithm == fastholo.Algorithm.RAAR:
+    if algorithm == hiholo.Algorithm.RAAR:
         algo_params = [0.75, 0.99, 20]
     else:
         algo_params = [0.7]
     
     # Constraints
-    amp_limits = [0.0, float('inf')]  # [min, max] amplitude
+    amp_limits = [1, 1]  # [min, max] amplitude
     phase_limits = [-float('inf'), float('inf')]  # [min, max] phase
     support = []  # Support constraint region size
     outside_value = 0.0  # Value outside support region
     
     # Padding
     pad_size = [250, 250]  # Padding size
-    pad_type = fastholo.PaddingType.Replicate
+    pad_type = hiholo.PaddingType.Replicate
     pad_value = 0.0
     
     # Probe parameters (for APWP algorithm)
@@ -92,8 +92,8 @@ def test_reconstruction():
     probe_phase_dataset = None
     
     # Projection type, Kernel method, Error calculation
-    projection_type = fastholo.ProjectionType.Averaged
-    kernel_type = fastholo.PropKernelType.Fourier
+    projection_type = hiholo.ProjectionType.Averaged
+    kernel_type = hiholo.PropKernelType.Fourier
     
     # Error calculation
     calc_error = False
@@ -117,7 +117,7 @@ def test_reconstruction():
     # Read probe grams if provided
     probe_array = np.array([])
     probe_phase_array = np.array([])
-    if algorithm == fastholo.Algorithm.APWP:
+    if algorithm == hiholo.Algorithm.APWP:
         if probe_file is not None:
             with h5py.File(probe_file, 'r') as f:
                 probe_array = np.array(f[probe_dataset], dtype=np.float32)
@@ -128,12 +128,12 @@ def test_reconstruction():
     
     # Output algorithm info
     algorithm_names = {
-        fastholo.Algorithm.AP: "AP",
-        fastholo.Algorithm.RAAR: "RAAR",
-        fastholo.Algorithm.HIO: "HIO",
-        fastholo.Algorithm.DRAP: "DRAP",
-        fastholo.Algorithm.APWP: "APWP",
-        fastholo.Algorithm.EPI: "EPI"
+        hiholo.Algorithm.AP: "AP",
+        hiholo.Algorithm.RAAR: "RAAR",
+        hiholo.Algorithm.HIO: "HIO",
+        hiholo.Algorithm.DRAP: "DRAP",
+        hiholo.Algorithm.APWP: "APWP",
+        hiholo.Algorithm.EPI: "EPI"
     }
     print(f"Using algorithm: {algorithm_names.get(algorithm, 'Unknown')}")
     
@@ -144,8 +144,8 @@ def test_reconstruction():
     initial_amplitude_array = np.array([])
     # Perform reconstruction in intervals
     for i in range(iterations // plot_interval):
-        if algorithm == fastholo.Algorithm.EPI:
-            result = fastholo.reconstruct_epi(
+        if algorithm == hiholo.Algorithm.EPI:
+            result = hiholo.reconstruct_epi(
                 holograms=holo_data,                    
                 fresnelNumbers=fresnel_numbers,
                 iterations=plot_interval,
@@ -174,7 +174,7 @@ def test_reconstruction():
             display_image(result[1], f"Amplitude reconstructed by {(i+1)*plot_interval} iterations")
         else:            
             # New iterative reconstruction API
-            result = fastholo.reconstruct_iter( 
+            result = hiholo.reconstruct_iter( 
                 holograms=holo_data,                    
                 fresnelNumbers=fresnel_numbers,
                 iterations=plot_interval,
@@ -200,7 +200,7 @@ def test_reconstruction():
             # result现在是2D numpy数组的列表：[phase, amplitude, ...]
             initial_phase_array = result[0]
             
-            if algorithm == fastholo.Algorithm.APWP:
+            if algorithm == hiholo.Algorithm.APWP:
                 probe_phase_array = result[2]
             
             if calc_error:

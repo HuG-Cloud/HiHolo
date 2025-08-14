@@ -1,10 +1,10 @@
-# FastHolo
+# HiHolo
 
 ## 项目概述
 
-FastHolo 是一个专为X射线传播相位衬度成像（PBI）全息模式设计的高性能计算框架。面对现有软件在处理大规模、高分辨率数据时遇到的性能瓶颈与硬件支持限制，FastHolo 基于 C++/CUDA/MPI 混合并行架构，提供从数据预处理、相位恢复到三维层析重建的完整、高效解决方案。
+HiHolo 是一个专为X射线传播相位衬度成像（PBI）全息模式设计的高性能计算框架。面对现有软件在处理大规模、高分辨率数据时遇到的性能瓶颈与硬件支持限制，HiHolo 基于 C++/CUDA/MPI 混合并行架构，提供从数据预处理、相位恢复到三维层析重建的完整、高效解决方案。
 
-本项目不仅实现了多种经典的相位恢复算法，更针对实际应用中的关键挑战，提出了三种创新的改进算法。这些优化使得 FastHolo 在保证重建质量的同时，性能远超同类主流软件，并展现了卓越的多GPU扩展能力，旨在为高能同步辐射光源（如HEPS）的前沿实验提供强大的数据处理支持。
+本项目不仅实现了多种经典的相位恢复算法，更针对实际应用中的关键挑战，提出了三种创新的改进算法。这些优化使得 HiHolo 在保证重建质量的同时，性能远超同类主流软件，并展现了卓越的多GPU扩展能力，旨在为高能同步辐射光源（如HEPS）的前沿实验提供强大的数据处理支持。
 
 ## 项目结构
 
@@ -16,11 +16,11 @@ FastHolo 是一个专为X射线传播相位衬度成像（PBI）全息模式设�
 
 ## 主要功能
 
-FastHolo 提供了一套完整的全息数据处理工具链，其核心功能围绕高性能相位恢复算法展开。
+HiHolo 提供了一套完整的全息数据处理工具链，其核心功能围绕高性能相位恢复算法展开。
 
 ### 相位恢复算法
 
-FastHolo 支持多种解析和迭代类型的相位恢复算法。
+HiHolo 支持多种解析和迭代类型的相位恢复算法。
 
 - **经典迭代算法**: 
   - AP (Alternating Projection)
@@ -98,7 +98,7 @@ pip3 install pybind11 numpy h5py matplotlib
 
 ```bash
 # 创建虚拟环境
-conda create -n fastholo
+conda create -n hiholo
 
 # MPI/CUDA工具
 conda install -c conda-forge openmpi cuda-cudart=12.6
@@ -234,36 +234,36 @@ mpirun -n 4 ./holo_recons_ctf_angles \
 
 ### 2. Python模块接口
 
-Python模块 `fastholo` 提供了完整的API接口，支持脚本编程。
+Python模块 `hiholo` 提供了完整的API接口，支持脚本编程。
 
 #### 2.1 基本导入和枚举
 
 ```python
-import fastholo
+import hiholo
 import numpy as np
 import h5py
 
 # 算法枚举
-algorithm = fastholo.Algorithm.AP  # 或 RAAR, HIO, DRAP, APWP, BIPEPI
+algorithm = hiholo.Algorithm.AP  # 或 RAAR, HIO, DRAP, APWP, BIPEPI
 
 # 投影类型
-projection_type = fastholo.ProjectionType.Averaged  # 或 Sequential, Cyclic
+projection_type = hiholo.ProjectionType.Averaged  # 或 Sequential, Cyclic
 
 # 传播核类型
-kernel_type = fastholo.PropKernelType.Fourier  # 或 Chirp, ChirpLimited
+kernel_type = hiholo.PropKernelType.Fourier  # 或 Chirp, ChirpLimited
 
 # 填充类型
-padding_type = fastholo.PaddingType.Replicate  # 或 Constant, Fadeout
+padding_type = hiholo.PaddingType.Replicate  # 或 Constant, Fadeout
 ```
 
 #### 2.2 图像预处理
 
 ```python
 # 去除异常值
-cleaned_image = fastholo.removeOutliers(image, kernelSize=5, threshold=2.0)
+cleaned_image = hiholo.removeOutliers(image, kernelSize=5, threshold=2.0)
 
 # 去除条纹
-destriped_image = fastholo.removeStripes(
+destriped_image = hiholo.removeStripes(
     image, 
     rangeRows=0, 
     rangeCols=0, 
@@ -272,7 +272,7 @@ destriped_image = fastholo.removeStripes(
 )
 
 # 距离标定
-parameters = fastholo.calibrateDistance(
+parameters = hiholo.calibrateDistance(
     holograms,        # 全息图数据
     numImages,        # 图像数量
     rows, cols,       # 图像尺寸
@@ -287,19 +287,19 @@ parameters = fastholo.calibrateDistance(
 
 ```python
 # 单次CTF重建
-phase = fastholo.reconstruct_ctf(
+phase = hiholo.reconstruct_ctf(
     holograms,            # 全息图数据,2D/3D numpy array
     fresnelNumbers,       # 菲涅尔数 [[f1], [f2], ...]
     lowFreqLim=1e-3,      # 低频限制
     highFreqLim=1e-1,     # 高频限制
     betaDeltaRatio=0.0,   # β/δ比值
     padSize=[],           # 填充大小
-    padType=fastholo.PaddingType.Replicate,
+    padType=hiholo.PaddingType.Replicate,
     padValue=0.0
 )
 
 # 批处理CTF重建
-ctf_reconstructor = fastholo.CTFReconstructor(
+ctf_reconstructor = hiholo.CTFReconstructor(
     batchSize=5,
     numImages=3,
     imSize=[2048, 2048],
@@ -317,12 +317,12 @@ result = ctf_reconstructor.reconsBatch(hologram_batch)
 
 ```python
 # 单次迭代重建
-result = fastholo.reconstruct_iter(
+result = hiholo.reconstruct_iter(
     holograms,                       # 全息图数据，2D/3D numpy array
     fresnelNumbers,                  # 菲涅尔数
     iterations=200,                  # 迭代次数
     initialPhase=np.array([]),       # 初始相位猜测
-    algorithm=fastholo.Algorithm.AP, # 算法选择
+    algorithm=hiholo.Algorithm.AP, # 算法选择
     algoParameters=[0.7],            # 算法参数
     minPhase=-float('inf'),          # 相位约束
     maxPhase=float('inf'),
@@ -331,10 +331,10 @@ result = fastholo.reconstruct_iter(
     support=[],                      # 支撑约束
     outsideValue=0.0,
     padSize=[200, 200],              # 填充大小
-    padType=fastholo.PaddingType.Replicate,
+    padType=hiholo.PaddingType.Replicate,
     padValue=0.0,
-    projectionType=fastholo.ProjectionType.Averaged,
-    kernelType=fastholo.PropKernelType.Fourier,
+    projectionType=hiholo.ProjectionType.Averaged,
+    kernelType=hiholo.PropKernelType.Fourier,
     holoProbes=np.array([]),         # 探针数据 (APWP算法)
     initProbePhase=np.array([]),     # 初始探针相位
     calcError=False                  # 是否计算误差
@@ -348,7 +348,7 @@ reconstructed_amplitude = result[1]
 #### 2.5 EPI算法
 
 ```python
-result = fastholo.reconstruct_epi(
+result = hiholo.reconstruct_epi(
     holograms,                      # 全息图数据，2D/3D numpy array
     fresnelNumbers,                 # 菲涅尔数
     iterations=200,                 # 迭代次数
@@ -361,8 +361,8 @@ result = fastholo.reconstruct_epi(
     support=[],
     outsideValue=0.0,
     padSize=[]
-    projectionType=fastholo.ProjectionType.Averaged,
-    kernelType=fastholo.PropKernelType.Fourier,
+    projectionType=hiholo.ProjectionType.Averaged,
+    kernelType=hiholo.PropKernelType.Fourier,
     calcError=False
 )
 ```
@@ -370,13 +370,13 @@ result = fastholo.reconstruct_epi(
 #### 2.6 批处理迭代重建
 
 ```python
-reconstructor = fastholo.Reconstructor(
+reconstructor = hiholo.Reconstructor(
     batchSize=5,                  # 批处理大小
     numImages=3,                  # 每批图像数量
     imSize=[2048, 2048],          # 图像尺寸
     fresnelNumbers=[[1e-4], [2e-4], [3e-4]],
     iterations=200,               # 迭代次数
-    algorithm=fastholo.Algorithm.RAAR,
+    algorithm=hiholo.Algorithm.RAAR,
     algoParams=[0.75, 0.99, 20],  # RAAR参数
     minPhase=-3.14,               # 约束参数
     maxPhase=3.14,
@@ -385,10 +385,10 @@ reconstructor = fastholo.Reconstructor(
     support=[1024, 1024],         # 支撑区域
     outsideValue=0.0,
     padSize=[250, 250],           # 填充参数
-    padType=fastholo.PaddingType.Replicate,
+    padType=hiholo.PaddingType.Replicate,
     padValue=0.0,
-    projType=fastholo.ProjectionType.Averaged,
-    kernelType=fastholo.PropKernelType.Fourier
+    projType=hiholo.ProjectionType.Averaged,
+    kernelType=hiholo.PropKernelType.Fourier
 )
 
 # 处理批次数据

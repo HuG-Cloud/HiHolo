@@ -5,6 +5,7 @@
 #include <complex>
 
 typedef std::vector<int> IntArray;
+typedef std::vector<IntArray> Int2DArray;
 
 typedef std::vector<float> FArray;
 typedef std::vector<FArray> F2DArray;

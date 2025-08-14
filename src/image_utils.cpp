@@ -217,19 +217,36 @@ void ImageUtils::removeStripes(cv::Mat &image, int rangeRows, int rangeCols, int
 //     }
 // }
 
-D2DArray ImageUtils::calibrateDistance(const FArray &holograms, int numImages, int rows, int cols,
-                                       double length, double pixelSize, const DArray &nz, double stepSize)
+// Int2DArray ImageUtils::registerImages(float *data, int numImages, int rows, int cols)
+// {
+//     std::vector<itk::simple::Image> holoImages(numImages);
+//     convertVecToImgs(data, holoImages, rows, cols);
+//     Int2DArray translations(numImages);
+//     translations[0] = {0, 0};
+
+//     for (int i = 1; i < numImages; i++) {
+//         translations[i] = ImageUtils::registerImage(holoImages[0], holoImages[i]);
+//     }
+
+//     return translations;
+// }
+
+DArray ImageUtils::computePSDs(const std::vector<cv::Mat> &images, int direction, std::vector<cv::Mat> &profiles, std::vector<cv::Mat> &frequencies)
 {
-    // Convert holograms to cv::Mat
-    std::vector<cv::Mat> holoMats(numImages, cv::Mat(rows, cols, CV_32F));
-    for (int i = 0; i < numImages; i++) {
-        memcpy(holoMats[i].data, holograms.data() + i * rows * cols, rows * cols * sizeof(float));
+    DArray maxPSD(images.size());
+    for (int i = 0; i < images.size(); i++) {
+        maxPSD[i] = computePSD(images[i], direction, profiles[i], frequencies[i]);
     }
 
+    return maxPSD;
+}
+
+D2DArray ImageUtils::calibrateDistance(const DArray &maxPSD, const DArray &nz, double length, double pixelSize, double stepSize)
+{
     // Compute pixels and magnification
-    DArray maxPSD(numImages), magnitudes(numImages);
+    int numImages = maxPSD.size();
+    DArray magnitudes(numImages);
     for (int i = 0; i < numImages; i++) {
-        maxPSD[i] = computePSD(holoMats[i]);
         magnitudes[i] = 1.0 / ((1.0 / maxPSD[i]) * pixelSize / length);
     }
 
@@ -239,19 +256,25 @@ D2DArray ImageUtils::calibrateDistance(const FArray &holograms, int numImages, i
     gsl_fit_linear(nz.data(), 1, magnitudes.data(), 1, numImages, &a, &b, cov, cov + 1, cov + 2, cov + 3);
 
     // Return the distances and the fitting parameters
-    D2DArray parameters(3);
-    parameters[0] = maxPSD;
+    D2DArray parameters(4);
+    parameters[0] = nz;
     parameters[1] = magnitudes;
+
+    DArray mag_fits(numImages);
+    for (int i = 0; i < numImages; i++) {
+        mag_fits[i] = b * nz[i] + a;
+    }
+    parameters[2] = mag_fits;
 
     // Compute the distances
     double z1 = a * stepSize / b;
     double z2 = stepSize / b;
-    parameters[2] = {b, a, cov[3], z1, z2};
+    parameters[3] = {z1, z2, b, a, cov[3]};
 
     return parameters;
 }
 
-double ImageUtils::computePSD(const cv::Mat &image)
+double ImageUtils::computePSD(const cv::Mat &image, int direction, cv::Mat &profile, cv::Mat &fre)
 {
     // Split the image into real and imaginary parts
     cv::Mat planes[] = {image, cv::Mat::zeros(image.size(), image.type())};
@@ -265,11 +288,34 @@ double ImageUtils::computePSD(const cv::Mat &image)
     cv::magnitude(planes[0], planes[1], psd);
     cv::pow(psd, 2, psd);
 
-    // Sum along the column direction
-    cv::Mat profile;
-    cv::reduce(psd, profile, 0, cv::REDUCE_SUM, CV_32F);
+    // Sum along the column or row direction
+    // 0 for column, 1 for row
+    cv::reduce(psd, profile, direction, cv::REDUCE_SUM, CV_32F);
 
-    // Compute the number of pixels
+    int size;
+    if (direction == 0) { // 如果沿列方向归约，使用列数
+        size = image.cols;
+    } else { // 如果沿行方向归约，使用行数
+        size = image.rows;
+    }
+    
+    // 创建频率向量，只取一半（到奈奎斯特频率），作为行向量
+    fre = cv::Mat(1, size / 2, CV_32F);
+    float* freData = reinterpret_cast<float*>(fre.data);
+    for (int i = 0; i < size / 2; i++) {
+        freData[i] = static_cast<float>(i) / static_cast<float>(size);
+    }
+    
+    if (profile.rows > 1) {
+        profile = profile.t();
+    }
+    
+    // 截取profile以匹配频率轴的大小
+    if (profile.total() > fre.total()) {
+        profile = profile.colRange(0, fre.cols);
+    }
+
+    // Compute the maximum value
     double maxVal;
     cv::minMaxLoc(profile, nullptr, &maxVal);
 

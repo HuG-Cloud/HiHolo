@@ -6,7 +6,7 @@ ParallelCompile("NPY_NUM_BUILD_JOBS").install()
 
 ext_modules = [
     Pybind11Extension(
-        "fastholo",
+        "hiholo",
         sources=[
             "bindings/pybind_wrapper.cpp",
         ],
@@ -17,7 +17,7 @@ ext_modules = [
 ]
 
 setup(
-    name="fastholo",
+    name="hiholo",
     ext_modules=ext_modules,
     cmdclass={"build_ext": build_ext},
     zip_safe=False,

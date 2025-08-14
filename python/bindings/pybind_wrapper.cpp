@@ -23,7 +23,7 @@ py::array_t<float> mat_to_numpy(const cv::Mat& mat) {
     );
 }
 
-PYBIND11_MODULE(fastholo, m) {
+PYBIND11_MODULE(hiholo, m) {
     m.doc() = "Python binding for holographic reconstruction using CTF and iterative methods";
 
     py::enum_<CUDAUtils::PaddingType>(m, "PaddingType")
@@ -71,17 +71,65 @@ PYBIND11_MODULE(fastholo, m) {
           py::arg("rangeCols") = 0,
           py::arg("windowSize") = 5,
           py::arg("method") = "mul");
-    
-    // Bind distance calibration function
+
+    m.def("computePSDs", [](py::array_t<float> images_array, int direction) {
+          py::buffer_info buf = images_array.request();
+          
+          // Parse dimensions from numpy array
+          int numImages, rows, cols;
+          if (buf.ndim == 3) {
+              // Shape: (numImages, rows, cols)
+              numImages = buf.shape[0];
+              rows = buf.shape[1];
+              cols = buf.shape[2];
+          } else {
+              throw std::runtime_error("Images array must be 3D (numImages, rows, cols)");
+          }
+          
+          // Convert numpy array to vector of cv::Mat
+          std::vector<cv::Mat> cvImages(numImages);
+          float* data_ptr = static_cast<float*>(buf.ptr);
+          for (int i = 0; i < numImages; i++) {
+              cvImages[i] = cv::Mat(rows, cols, CV_32F, data_ptr + i * rows * cols);
+          }
+          
+          std::vector<cv::Mat> profiles(numImages);
+          std::vector<cv::Mat> frequencies(numImages);
+          
+          DArray maxPSDs = ImageUtils::computePSDs(cvImages, direction, profiles, frequencies);
+          
+          // Convert results using efficient memory operations
+          py::list result_list;
+          result_list.append(py::cast(maxPSDs));
+          
+          py::list frequencies_list;
+          for (const auto& freq : frequencies) {
+              // Create std::vector from cv::Mat data for efficient conversion
+              DArray freq_vec(freq.ptr<float>(), freq.ptr<float>() + freq.total());
+              frequencies_list.append(py::cast(freq_vec));
+          }
+          result_list.append(frequencies_list);
+
+          py::list profiles_list;
+          for (const auto& profile : profiles) {
+              // Create std::vector from cv::Mat data for efficient conversion
+              DArray profile_vec(profile.ptr<float>(), profile.ptr<float>() + profile.total());
+              profiles_list.append(py::cast(profile_vec));
+          }
+          result_list.append(profiles_list);
+
+          return result_list;
+    }, "Compute PSDs of a group of images, returns [maxPSDs, profiles, frequencies]",
+          py::arg("images"),
+          py::arg("direction"));
+
+    // Bind distance calibration function - simplified direct binding
     m.def("calibrateDistance", &ImageUtils::calibrateDistance,
-          "Calibrate distance by standard method",
-          py::arg("holograms"),
-          py::arg("numImages"),
-          py::arg("rows"),
-          py::arg("cols"),
+          "Calibrate distance using maximum PSD values",
+          py::arg("maxPSD"),
+          py::arg("nz"),
           py::arg("length"),
           py::arg("pixelSize"),
-          py::arg("nz"),
           py::arg("stepSize"));
     
     // Bind CTF reconstruction function with numpy array auto-parsing
