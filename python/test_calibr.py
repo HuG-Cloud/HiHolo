@@ -4,9 +4,10 @@ import mytools
 # Read holograms
 input_file = "cali_data.h5"
 input_dataset = "holodata"
-holo_data = mytools.read_h5_to_float(input_file, input_dataset)
-direction = 0
+holo_data = mytools.read_h5_to_double(input_file, input_dataset)
+display_data = mytools.scale_display_data(holo_data[0])
 
+direction = 0
 # 0 represents vertical average, 1 represents horizontal average
 # maxFre: [val1, val2, ...]
 # frequencies: [[freq_data1], [freq_data2], ...], x values

@@ -38,18 +38,18 @@ def test_reconstruction():
     # Parameters (modify this section)
     #############################################################
     
-    #input_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_holo.h5"
-    input_file = "/home/hug/Downloads/HoloTomo_Data/holo_regist_new.h5"
+    input_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board_holo.h5"
+    #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_regist_new.h5"
     input_dataset = "holodata"
-    #output_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_result.h5"
-    output_file = "/home/hug/Downloads/HoloTomo_Data/result.h5"
+    output_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board_result.h5"
+    #output_file = "/home/hug/Downloads/HoloTomo_Data/result.h5"
     output_dataset = "phasedata"
     
     # List of fresnel numbers
-    fresnel_numbers = [[0.0016667], [0.00083333], [0.000483333], [0.000266667]]
+    #fresnel_numbers = [[0.0016667], [0.00083333], [0.000483333], [0.000266667]]
     # fresnel_numbers = [[2.906977e-4], [1.453488e-4], [8.4302325e-5], [4.651163e-5]]
     # fresnel_numbers = [[0.003], [0.0015], [0.00087], [0.00039], [0.000216]]
-    #fresnel_numbers = [[2.987065e-4]] # wing of dragonfly
+    fresnel_numbers = [[5.578503254e-4]] # wing of dragonfly
     # 确保fresnel_numbers的格式正确
     print(f"Using {len(fresnel_numbers)} fresnel numbers: {fresnel_numbers}")
     

@@ -59,7 +59,7 @@ def test_with_artificial_shifts():
             test_images = base_data[:4].copy()
             
             # Define known translations (same as in test_sitk.cpp)
-            known_translations = [[0, 0], [10, -10], [10, 10], [-10, 10]]
+            known_translations = [[0, 0], [7, 8], [8, 7], [-7, 7]]
             
             print("Applying known translations:")
             for i, trans in enumerate(known_translations):

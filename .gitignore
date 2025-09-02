@@ -10,3 +10,4 @@ python/plots/
 *.h5
 *.mat
 *.pyc
+*.png

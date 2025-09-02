@@ -34,10 +34,82 @@ def read_h5_to_float(file_path, dataset_name=None):
         
         data = f[dataset_name][()]
         return data.astype(np.float32)
-    
+
+def scale_display_data(data, max_size=1024):
+    """
+    If the length or width of the 2D data is greater than the threshold 1024, it is downsampled to 1024
+    """
+    if len(data.shape) != 2:
+        raise ValueError(f"Data is not 2D. Actual dimensions: {data.shape}")
+    h, w = data.shape
+    if h > max_size or w > max_size:
+        # Calculate the scaling factor
+        scale_h = max_size / h if h > max_size else 1.0
+        scale_w = max_size / w if w > max_size else 1.0
+        scale = min(scale_h, scale_w)
+        new_h = int(h * scale)
+        new_w = int(w * scale)
+        # Use SimpleITK for downsampling
+        img = sitk.GetImageFromArray(data.astype(np.float32))
+        resampler = sitk.ResampleImageFilter()
+        resampler.SetSize([new_w, new_h])
+        orig_spacing = img.GetSpacing()
+        orig_size = img.GetSize()
+        new_spacing = [orig_spacing[0] * orig_size[0] / new_w, orig_spacing[1] * orig_size[1] / new_h]
+        resampler.SetOutputSpacing(new_spacing)
+        resampler.SetInterpolator(sitk.sitkLinear)
+        img_resampled = resampler.Execute(img)
+        data_resampled = sitk.GetArrayFromImage(img_resampled)
+        # SimpleITK outputs shape as (height, width), consistent with numpy
+        return data_resampled
+    else:
+        return data
+
 def save_h5_from_float(file_path, dataset_name, data):
     with h5py.File(file_path, 'w') as f:
         f.create_dataset(dataset_name, data=data, dtype=np.float32)
+
+def read_holodata_info(file_path, datasets):
+    dataset_list = [ds.strip() for ds in datasets.split(',')]
+    angle_list = []
+    img_1 = None
+    with h5py.File(file_path, 'r') as f:
+        for i in range(len(dataset_list)):
+            if dataset_list[i] not in f:
+                raise ValueError(f"Dataset '{dataset_list[i]}' not found in HDF5 file")
+            data = f[dataset_list[i]][()]
+            if i == 0:
+                img_1 = data[0]
+            angle_list.append(data.shape[0])
+
+    # Check if the angles of all datasets is consistent
+    if not all(a == angle_list[0] for a in angle_list):
+        raise ValueError(f"Not all datasets have the same number of angles: {angle_list}")
+    angles = angle_list[0]
+                
+    return angles, img_1
+
+def read_holodata_frame(file_path, datasets, distance, angle):
+    dataset_list = [ds.strip() for ds in datasets.split(',')]
+    dataset = dataset_list[distance]
+    with h5py.File(file_path, 'r') as f:
+        if dataset not in f:
+            raise ValueError(f"Dataset '{dataset}' not found in HDF5 file")
+        data = f[dataset][()]
+        return data[angle]
+
+def read_phasedata_frame(file_path, dataset, angle):
+    with h5py.File(file_path, 'r') as f:
+        if dataset not in f:
+            raise ValueError(f"Dataset '{dataset}' not found in HDF5 file")
+        data = f[dataset][()]
+        return data[angle]
+
+def remove_outliers(data):
+    pass
+
+def remove_stripes(data):
+    pass
 
 def numpy_to_sitk_image(array):
     """Convert numpy array to SimpleITK image"""

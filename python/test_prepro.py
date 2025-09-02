@@ -3,8 +3,7 @@ import h5py
 import hiholo
 
 # Input/output files
-input_file1 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board.h5"
-input_file2 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board_back.h5"
+input_file = "/home/hug/Downloads/HoloTomo_Data/holo_purephase.h5"
 output_file1 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board_holo.h5"
 output_file2 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board_back_holo.h5"
 dataset_name = "holodata"
@@ -25,6 +24,3 @@ holo_data = holo_data[0:2704, 0:2704]
 # Save processed holograms
 with h5py.File(output_file1, 'w') as f:
     f.create_dataset(dataset_name, data=holo_data, dtype=np.float32)
-
-# with h5py.File(output_file2, 'w') as f:
-#     f.create_dataset(dataset_name, data=back_data, dtype=np.float32)
