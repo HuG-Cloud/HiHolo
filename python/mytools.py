@@ -15,15 +15,13 @@ def read_h5_to_double(file_path, dataset_name=None):
         # Read the dataset
         if dataset_name not in f:
             raise ValueError(f"Dataset '{dataset_name}' not found in HDF5 file")
-        
-        data = f[dataset_name][()]
+        data = np.array(f[dataset_name], dtype=np.float64)
         
         # Ensure data is 3D
         if len(data.shape) != 3:
             raise ValueError(f"Data is not 3D. Actual dimensions: {data.shape}")
         
-        # Convert data to float type
-        return data.astype(np.float64)
+        return data
     
 def read_h5_to_float(file_path, dataset_name=None):
     with h5py.File(file_path, 'r') as f:
@@ -33,8 +31,8 @@ def read_h5_to_float(file_path, dataset_name=None):
                 raise ValueError(f"HDF5 file {file_path} is empty, no datasets available")
             dataset_name = keys[0]
         
-        data = f[dataset_name][()]
-        return data.astype(np.float32)
+        data = np.array(f[dataset_name], dtype=np.float32)
+        return data
 
 def scale_display_data(data, max_size=1024):
     """
@@ -78,7 +76,7 @@ def read_holodata_info(file_path, datasets):
         for i in range(len(dataset_list)):
             if dataset_list[i] not in f:
                 raise ValueError(f"Dataset '{dataset_list[i]}' not found in HDF5 file")
-            data = f[dataset_list[i]][()]
+            data = np.array(f[dataset_list[i]], dtype=np.float32)
             if i == 0:
                 img_1 = data[0]
             angle_list.append(data.shape[0])
@@ -96,14 +94,14 @@ def read_holodata_frame(file_path, datasets, distance, angle):
     with h5py.File(file_path, 'r') as f:
         if dataset not in f:
             raise ValueError(f"Dataset '{dataset}' not found in HDF5 file")
-        data = f[dataset][()]
+        data = np.array(f[dataset], dtype=np.float32)
         return data[angle]
 
 def read_phasedata_frame(file_path, dataset, angle):
     with h5py.File(file_path, 'r') as f:
         if dataset not in f:
             raise ValueError(f"Dataset '{dataset}' not found in HDF5 file")
-        data = f[dataset][()]
+        data = np.array(f[dataset], dtype=np.float32)
         return data[angle]
 
 def remove_outliers(data, kernelSize=5, threshold=2.0):

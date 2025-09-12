@@ -10,12 +10,12 @@ dataset_name = "holodata"
 
 # Read holograms
 holo_data = mytools.read_h5_to_float(input_file, dataset_name)
+print(holo_data.shape)
 
 mytools.remove_outliers(holo_data)
 mytools.remove_stripes(holo_data)
-print(holo_data[0])
 
-display_data = mytools.scale_display_data(holo_data[0])
+display_data = mytools.scale_display_data(holo_data[1])
 plt.figure(figsize=(8, 8))
 plt.imshow(display_data, cmap='viridis')
 plt.colorbar()

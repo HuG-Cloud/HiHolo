@@ -4,6 +4,7 @@
 #include <limits>
 
 #include "holo_recons.h"
+#include "image_utils.h"
 
 namespace py = pybind11;
 

@@ -2,7 +2,6 @@
 #define HOLO_RECONS_H_
 
 #include "ProjectionSolver.h"
-#include "image_utils.h"
 
 namespace PhaseRetrieval
 {   
