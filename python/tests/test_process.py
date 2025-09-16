@@ -1,30 +1,32 @@
 import numpy as np
-import h5py
+import sys
+import os
+
+# Add the parent directory to Python path to import mytools
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import mytools
 import hiholo
 
 # Input/output files
-input_file1 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board.h5"
-input_file2 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board_back.h5"
-output_file1 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board_holo.h5"
-output_file2 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board_back_holo.h5"
+input_file1 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/foot.h5"
+input_file2 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/foot_back.h5"
+output_file1 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/foot_holo.h5"
+output_file2 = "/home/hug/Downloads/HoloTomo_Data/visiblelight/foot_back_holo.h5"
 dataset_name = "holodata"
 
 # Read holograms
-with h5py.File(input_file1, 'r') as f:
-    holo_data = np.array(f[dataset_name], dtype=np.float32)
-    holo_data = hiholo.removeOutliers(holo_data)
+holo_data = mytools.read_h5_to_float(input_file1, dataset_name)
+holo_data = hiholo.removeOutliers(holo_data)
+# holo_data = hiholo.removeStripes(holo_data)
 
-with h5py.File(input_file2, 'r') as f:
-    back_data = np.array(f[dataset_name], dtype=np.float32)
-    back_data = hiholo.removeOutliers(back_data)
+back_data = mytools.read_h5_to_float(input_file2, dataset_name)
+back_data = hiholo.removeOutliers(back_data)
+# back_data = hiholo.removeStripes(back_data)
 
-holo_data = holo_data / back_data
-holo_data = holo_data[0:2704, 0:2704]
-# back_data = back_data[0:2048, 400:2448]
+# holo_data = holo_data / back_data
+holo_data = holo_data[672:3376, 0:2704]
+back_data = back_data[672:3376, 0:2704]
 
 # Save processed holograms
-with h5py.File(output_file1, 'w') as f:
-    f.create_dataset(dataset_name, data=holo_data, dtype=np.float32)
-
-# with h5py.File(output_file2, 'w') as f:
-#     f.create_dataset(dataset_name, data=back_data, dtype=np.float32)
+mytools.save_h5_from_float(output_file1, dataset_name, holo_data)
+mytools.save_h5_from_float(output_file2, dataset_name, back_data)

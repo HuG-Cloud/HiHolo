@@ -88,6 +88,17 @@ def read_holodata_info(file_path, datasets):
                 
     return angles, img_1
 
+def read_3d_data_info(file_path, dataset, num_images):
+    with h5py.File(file_path, 'r') as f:
+        if dataset not in f:
+            raise ValueError(f"Dataset '{dataset}' not found in HDF5 file")
+        data = np.array(f[dataset], dtype=np.float32)
+        if data.ndim != 3:
+            raise ValueError(f"Data is not 3D. Actual dimensions: {data.shape}")
+        if num_images != data.shape[0]:
+            raise ValueError(f"Num_images {num_images} does not match the number of images {data.shape[0]}")
+        return data[0]
+
 def read_holodata_frame(file_path, datasets, distance, angle):
     dataset_list = [ds.strip() for ds in datasets.split(',')]
     dataset = dataset_list[distance]
@@ -97,12 +108,30 @@ def read_holodata_frame(file_path, datasets, distance, angle):
         data = np.array(f[dataset], dtype=np.float32)
         return data[angle]
 
-def read_phasedata_frame(file_path, dataset, angle):
+def read_3d_data_frame(file_path, dataset, index):
     with h5py.File(file_path, 'r') as f:
         if dataset not in f:
             raise ValueError(f"Dataset '{dataset}' not found in HDF5 file")
         data = np.array(f[dataset], dtype=np.float32)
-        return data[angle]
+        if data.ndim != 3:
+            raise ValueError(f"Data is not 3D. Actual dimensions: {data.shape}")
+        return data[index]
+
+def read_dark_data(file_path, dataset):
+    return read_h5_to_float(file_path, dataset)[0]
+
+def get_angle_data(file_path, datasets, angle):
+    dataset_list = [ds.strip() for ds in datasets.split(',')]
+    data_angle = []
+    with h5py.File(file_path, 'r') as f:
+        for i in range(len(dataset_list)):
+            if dataset_list[i] not in f:
+                raise ValueError(f"Dataset '{dataset_list[i]}' not found in HDF5 file")
+            data = np.array(f[dataset_list[i]], dtype=np.float32)
+            data_angle.append(data[angle])
+
+    data_angle = np.stack(data_angle, axis=0)
+    return data_angle;
 
 def remove_outliers(data, kernelSize=5, threshold=2.0):
     # Ensure data is 3D
