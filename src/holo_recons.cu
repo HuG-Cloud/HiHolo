@@ -480,7 +480,7 @@ namespace PhaseRetrieval
             throw std::invalid_argument("The number of images and fresnel numbers does not match!");
 
         if (support.empty())
-            throw std::invalid_argument("BIPEPI algorithm requires the support size!");
+            throw std::invalid_argument("EPI algorithm requires the support size!");
 
         // Allocate memory for holograms on GPU
         float *holograms_gpu;

@@ -25,6 +25,9 @@ def convert_matlab_type_to_hdf5(data):
         转换后的numpy数组，保持原始数据类型
     """
     if isinstance(data, np.ndarray):
+        # 如果是2D数据，直接返回
+        if data.ndim == 2:
+            return data
         # 保持原始数据类型
         return data
     elif isinstance(data, (int, float, complex)):

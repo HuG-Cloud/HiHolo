@@ -7,7 +7,7 @@ import hiholo
 def display_image(phase, title="Phase"):
     """Display image"""
     plt.figure(figsize=(8, 8))
-    plt.imshow(phase, cmap='viridis')
+    plt.imshow(phase, cmap='gray')
     plt.colorbar()
     plt.title(title)
     plt.pause(3)
@@ -16,6 +16,7 @@ def display_image(phase, title="Phase"):
 # Input/output files
 input_file = "/home/hug/Downloads/HoloTomo_Data/holo_200angles_simu_format.h5"
 phase_file = "/home/hug/Downloads/HoloTomo_Data/holo_200angles_phase.h5"
+#phase_file = None
 
 datasets = "holodata_distance_0,holodata_distance_1,holodata_distance_2,holodata_distance_3"
 back_dataset = "backgrounds"
@@ -35,17 +36,18 @@ range_value = 0
 window_size = 5
 method = "mul"
 
-holo_data = mytools.remove_outliers(holo_data, kernel_size, threshold)
-holo_data = mytools.remove_stripes(holo_data, range_value, range_value, window_size, method)
-back_data = mytools.remove_outliers(back_data, kernel_size, threshold)
-dark_data = mytools.remove_outliers(dark_data, kernel_size, threshold)
+# holo_data = mytools.remove_outliers(holo_data, kernel_size, threshold)
+# holo_data = mytools.remove_stripes(holo_data, range_value, range_value, window_size, method)
+# back_data = mytools.remove_outliers(back_data, kernel_size, threshold)
+# dark_data = mytools.remove_outliers(dark_data, kernel_size, threshold)
 
 # The third interface (optional)
 isAPWP = False
-holo_data, probe_data = mytools.dark_flat_correction(holo_data, dark_data, back_data, isAPWP)
+probe_data = np.array([])
+#holo_data, probe_data = mytools.dark_flat_correction(holo_data, dark_data, back_data, isAPWP)
 
 # The fourth interface (optional)
-holo_data, translations = mytools.register_images(holo_data)
+#holo_data, translations = mytools.register_images(holo_data)
 
 # display_data = mytools.scale_display_data(holo_data[2])
 # plt.figure(figsize=(8, 8))
@@ -57,10 +59,10 @@ holo_data, translations = mytools.register_images(holo_data)
 fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
 
 # Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 4:APWP, 5:EPI, 100:CTF)
-algorithm = hiholo.Algorithm.AP
+algorithm = hiholo.Algorithm.RAAR
 
 # Padding
-pad_size = []
+pad_size = [50, 50]
 # Padding type (0:Constant, 1:Replicate, 2:Fadeout)
 pad_type = hiholo.PaddingType.Replicate
 pad_value = 0.0
@@ -91,6 +93,7 @@ outside_value = 0.0  # Value outside support region
 init_phase = np.array([])
 if phase_file is not None and phase_dataset is not None:
     init_phase = mytools.read_3d_data_frame(phase_file, phase_dataset, angle)
+    display_image(init_phase)
 
 calc_error = True
 
@@ -162,20 +165,4 @@ for i in range(iterations // plot_interval):
             residuals[0].extend(result[3].tolist())
             residuals[1].extend(result[4].tolist())
         
-        #display_image(result[0], f"Phase reconstructed by {(i+1)*plot_interval} iterations")
-
-# Display error if calculated
-if calc_error:
-    plt.figure(figsize=(10, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(residuals[0])
-    plt.title("Step Error")
-    plt.grid(True)
-
-    plt.subplot(1, 2, 2)
-    plt.plot(residuals[1])
-    plt.title("PM Error")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.pause(3)
-    plt.close()
+        display_image(result[0], f"Phase reconstructed by {(i+1)*plot_interval} iterations")
