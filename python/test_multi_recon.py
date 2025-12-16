@@ -8,9 +8,9 @@ processed_output_file = "/home/hug/Downloads/HoloTomo_Data/processed_data.h5"
 processed_output_dataset = "holodata"
 ite_output_file = "/home/hug/Downloads/HoloTomo_Data/ite_result.h5"
 ite_output_dataset = "phasedata"
+
 # phase_file = "/home/hug/Downloads/HoloTomo_Data/ctf_result.h5"
 # phase_dataset = "phasedata"
-
 phase_file = None
 phase_dataset = None
 
@@ -20,7 +20,7 @@ im_size = [500, 500]
 
 batch_size_recon = 100
 fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
-# Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 4:APWP, 5:EPI, 100:CTF)
+# Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP)
 algorithm = hiholo.Algorithm.RAAR
 
 # Padding

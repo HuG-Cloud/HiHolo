@@ -31,7 +31,7 @@ mytools.create_h5_file_dataset(processed_output_file, processed_output_dataset,
                                (angles, distances, im_size[0], im_size[1]))
 
 for i in range(0, angles, batch_size):
-    data_batch = mytools.get_batch_raw_data(input_file, datasets, i, batch_size);
+    data_batch = mytools.get_batch_raw_data(input_file, datasets, i, batch_size)
     print(f"Processing batch {i} to {i + batch_size}")
     data_batch = mytools.remove_outliers(data_batch, kernel_size, threshold)
     data_batch = mytools.remove_stripes(data_batch, range_value, range_value, window_size, method)
@@ -45,7 +45,7 @@ for i in range(0, angles, batch_size):
 
 batch_size_recon = 100
 fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
-# Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 4:APWP, 5:EPI, 100:CTF)
+# Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 100:CTF)
 algorithm = hiholo.Algorithm.CTF
 
 # Padding

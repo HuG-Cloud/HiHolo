@@ -24,15 +24,16 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import matplotlib.patches as patches
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import hiholo
 import mytools
 
-def display_image(phase, title="Phase"):
+def display_image(phase, title="Phase", cmap='gray'):
     """Display image"""
     plt.figure(figsize=(8, 8))
-    plt.imshow(phase, cmap='gray')
+    plt.imshow(phase, cmap=cmap)
     plt.colorbar()
     plt.title(title)
     plt.pause(1)
@@ -42,52 +43,64 @@ def save_image_with_colorbar(img, filename, cmap='gray', display_range=None):
     """
     Save an image with a colorbar, normalizing the image display but
     allowing a custom range for the colorbar labels.
+    If display_range is None, no colorbar is added.
     """
-    if display_range is None:
-        display_range = [0, 1]
-
     fig, ax = plt.subplots(figsize=(8, 8))
 
-    # Normalize the image data to the [0, 1] range for consistent display
+    # Normalize the entire image data to the [0, 1] range first
     min_val = np.min(img)
     max_val = np.max(img)
     
     if max_val == min_val:
+        # Handle constant image case
         normalized_img = np.zeros_like(img)
     else:
         normalized_img = (img - min_val) / (max_val - min_val)
 
-    # Display the normalized image, always mapping it to the full [0, 1] colormap
+    # Display the normalized image with a fixed color range [0, 1]
     im = ax.imshow(normalized_img, cmap=cmap, vmin=0, vmax=1)
     
+    # Hide axes (no width/height scales)
     ax.axis('off')
     
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="3%", pad=0.25)
-    cbar = fig.colorbar(im, cax=cax)
-    
-    # The colorbar's underlying data is [0, 1]. We'll format the labels
-    # to match the desired display_range.
-    display_min, display_max = display_range
-    
-    # Determine if the display range is integer-like
-    is_integer_range = all(isinstance(v, int) for v in display_range)
+    if display_range is not None:
+        # Colorbar aligned to image axis height
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="4%", pad=0.25)
+        cbar = fig.colorbar(im, cax=cax)
+        
+        # Map normalized ticks to the actual display range
+        ticks = np.linspace(0, 1, 6)
+        tick_labels = np.linspace(display_range[0], display_range[1], 6)
+        cbar.set_ticks(ticks)
+        cbar.set_ticklabels([f"{val:.1f}" for val in tick_labels])
+        cbar.ax.tick_params(labelsize=16)
 
-    def label_formatter(x, pos):
-        # Map the normalized value x (from 0-1) to the display range
-        value = display_min + x * (display_max - display_min)
-        if is_integer_range:
-            return f'{int(round(value))}'
-        else:
-            return f'{value:.1f}'
+    # # Add a 2mm scale bar
+    # # Pixel size in micrometers
+    # pixel_size_um = 3.45
+    # # Image dimensions
+    # img_height, img_width = normalized_img.shape
+    # # Scale bar length in micrometers (2mm = 2000um)
+    # scale_bar_length_um = 2000
+    # # Scale bar length in pixels
+    # scale_bar_length_px = scale_bar_length_um / pixel_size_um
 
-    cbar.formatter = mticker.FuncFormatter(label_formatter)
+    # # Position the scale bar at the bottom-left
+    # # Margin from the edge
+    # margin_px = 50
+    # # Scale bar dimensions (increased height)
+    # scale_bar_height_px = 40
+    # # Rectangle position (x, y)
+    # rect_x = margin_px
+    # rect_y = img_height - margin_px - scale_bar_height_px
     
-    # Set ticks in the normalized [0, 1] space
-    cbar.set_ticks(np.linspace(0, 1, 2))
-    
-    cbar.update_ticks()
-    cbar.ax.tick_params(labelsize=12)
+    # # Create and add the scale bar rectangle
+    # rect = patches.Rectangle((rect_x, rect_y), scale_bar_length_px, scale_bar_height_px, linewidth=1, edgecolor='white', facecolor='white')
+    # ax.add_patch(rect)
+
+    # # Add the scale bar label with larger font
+    # ax.text(rect_x + scale_bar_length_px / 2, rect_y - 10, '2 mm', color='white', ha='center', va='bottom', fontsize=25)
     
     fig.savefig(filename, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
@@ -102,11 +115,12 @@ def test_reconstruction():
     #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_regist_new.h5"
     #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_purephase.h5"
     #input_file = "/home/hug/Downloads/HoloTomo_Data/holopadw1.h5"
-    input_file = "/home/hug/Downloads/HoloTomo_Data/dog_cat_dataset/only_phase/holo_probewithobj2.h5"
+    input_file = "/home/hug/Downloads/HoloTomo_Data/dog_cat_dataset/only_phase/holo_probewithobj3.h5"
     #input_file = "/home/hug/Downloads/HoloTomo_Data/diff_1.tif"
     #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_data.h5"
     #input_file = "/home/hug/Downloads/HoloTomo_Data/processed_data.h5"    
     #input_dataset = "holodata"
+    #input_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_holo.h5"
     input_dataset = "hologramCTF_objwithprobe"
     #output_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board_result.h5"
     output_file = "/home/hug/Downloads/HoloTomo_Data/result.h5"
@@ -118,7 +132,7 @@ def test_reconstruction():
     #fresnel_numbers = [[0.003], [0.0015], [0.00087], [0.00039], [0.000216]]
     #fresnel_numbers = [[0.00087]]
     fresnel_numbers = [[0.0126], [0.00725], [0.00426], [0.00886]]
-    fresnel_numbers = [[0.00725]]
+    #fresnel_numbers = [[2.987e-4]]
     print(f"Using {len(fresnel_numbers)} fresnel numbers: {fresnel_numbers}")
     
     # Reconstruction parameters
@@ -144,7 +158,7 @@ def test_reconstruction():
     # Constraints
     amp_limits = [0, float('inf')]  # [min, max] amplitude
     phase_limits = [-float('inf'), float('inf')]  # [min, max] phase
-    support = []  # Support constraint region size
+    support = [2048, 2048]  # Support constraint region size
     outside_value = 1.0  # Value outside support region
     
     # Padding
@@ -172,14 +186,14 @@ def test_reconstruction():
     # End of parameters section
     #############################################################
     
-    holo_data = mytools.read_h5_to_float(input_file, input_dataset)[1]
+    holo_data = mytools.read_h5_to_float(input_file, input_dataset)
     #probe_data = mytools.read_h5_to_float(probe_file, probe_dataset)
     print(f"Loaded hologram of size {holo_data.shape}")
 
     # holo_data = holo_data / holo_data.max()
     # display_image(holo_data, "Hologram")
     # plt.imsave("holodata.png", holo_data[0], cmap='gray')
-    save_image_with_colorbar(holo_data, "holodata.png", cmap='gray', display_range=[0, 255])
+    save_image_with_colorbar(holo_data[3], "holodata.png", cmap='gray', display_range=None)
     # display_image(probe_data, "Probe")
     # plt.imsave("probeholo.png", probe_data, cmap='gray')
 
@@ -194,7 +208,7 @@ def test_reconstruction():
     probe_phase_array = np.array([])
     if algorithm == hiholo.Algorithm.APWP:
         if probe_file is not None:
-            probe_array = mytools.read_h5_to_float(probe_file, probe_dataset)[1]
+            probe_array = mytools.read_h5_to_float(probe_file, probe_dataset)
             plt.imsave("probeholo_0.png", probe_array, cmap='gray')
             #probe_array = probe_array / probe_array.max()
         
@@ -304,12 +318,13 @@ def test_reconstruction():
         plt.close()
     
     # Save images
-    save_image_with_colorbar(result[0], "phase_with_cb.png", cmap='gray')
-    save_image_with_colorbar(result[1], "amplitude.png", cmap='gray')
-    plt.imsave("phase.png", result[0], cmap='gray')
-    #plt.imsave("amplitude.png", result[1], cmap='gray')
+    #save_image_with_colorbar(result[0], "phase_with_cb.png", cmap='viridis')
+    amplitude = result[1][250:2298, 250:2298]
+    save_image_with_colorbar(amplitude, "amplitude.png", cmap='viridis', display_range=[0, 1])
+    plt.imsave("phase.png", result[0], cmap='viridis')
+    #plt.imsave("amplitude.png", result[1], cmap='viridis')
     if algorithm == hiholo.Algorithm.APWP:
-        plt.imsave("probe_phase.png", result[2], cmap='gray')
+        plt.imsave("probe_phase.png", result[2], cmap='viridis')
         
     # Save reconstructed holograms
     with h5py.File(output_file, 'w') as f:
