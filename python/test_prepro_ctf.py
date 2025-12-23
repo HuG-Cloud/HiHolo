@@ -56,7 +56,7 @@ low_freq_lim = 1e-3      # 低频正则化参数
 high_freq_lim = 1e-1     # 高频正则化参数  
 beta_delta_ratio = 0.1   # β/δ比值（吸收与相位偏移的比值）
 
-output_file = "/home/hug/Downloads/HoloTomo_Data/ctf_result.h5"
+output_file = "ctf_result.h5"
 output_dataset = "phasedata"
 
 result = hiholo.reconstruct_ctf(
@@ -70,4 +70,4 @@ result = hiholo.reconstruct_ctf(
     padValue=pad_value
 )
 
-# display_image(result, "CTF Reconstructed Phase")
+mytools.save_h5_from_float(output_file, output_dataset, result)

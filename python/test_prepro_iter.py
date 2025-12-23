@@ -36,30 +36,23 @@ range_value = 0
 window_size = 5
 method = "mul"
 
-# holo_data = mytools.remove_outliers(holo_data, kernel_size, threshold)
-# holo_data = mytools.remove_stripes(holo_data, range_value, range_value, window_size, method)
-# back_data = mytools.remove_outliers(back_data, kernel_size, threshold)
-# dark_data = mytools.remove_outliers(dark_data, kernel_size, threshold)
+holo_data = mytools.remove_outliers(holo_data, kernel_size, threshold)
+holo_data = mytools.remove_stripes(holo_data, range_value, range_value, window_size, method)
+back_data = mytools.remove_outliers(back_data, kernel_size, threshold)
+dark_data = mytools.remove_outliers(dark_data, kernel_size, threshold)
 
 # The third interface (optional)
-isAPWP = False
+isAPWP = True
 probe_data = np.array([])
-#holo_data, probe_data = mytools.dark_flat_correction(holo_data, dark_data, back_data, isAPWP)
+holo_data, probe_data = mytools.dark_flat_correction(holo_data, dark_data, back_data, isAPWP)
 
 # The fourth interface (optional)
-#holo_data, translations = mytools.register_images(holo_data)
-
-# display_data = mytools.scale_display_data(holo_data[2])
-# plt.figure(figsize=(8, 8))
-# plt.imshow(display_data, cmap='viridis')
-# plt.colorbar()
-# plt.title("holo_data first frame")
-# plt.show()
+# holo_data, translations = mytools.register_images(holo_data)
 
 fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
 
 # Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 4:APWP, 5:EPI, 100:CTF)
-algorithm = hiholo.Algorithm.RAAR
+algorithm = hiholo.Algorithm.APWP
 
 # Padding
 pad_size = [50, 50]
@@ -67,7 +60,7 @@ pad_size = [50, 50]
 pad_type = hiholo.PaddingType.Replicate
 pad_value = 0.0
 
-output_file = "/home/hug/Downloads/HoloTomo_Data/iter_result.h5"
+output_file = "iter_result.h5"
 output_dataset = "phasedata"
 
 iterations = 200
@@ -93,7 +86,7 @@ outside_value = 0.0  # Value outside support region
 init_phase = np.array([])
 if phase_file is not None and phase_dataset is not None:
     init_phase = mytools.read_3d_data_frame(phase_file, phase_dataset, angle)
-    display_image(init_phase)
+    #display_image(init_phase)
 
 calc_error = True
 
@@ -165,4 +158,8 @@ for i in range(iterations // plot_interval):
             residuals[0].extend(result[3].tolist())
             residuals[1].extend(result[4].tolist())
         
-        display_image(result[0], f"Phase reconstructed by {(i+1)*plot_interval} iterations")
+        #display_image(result[0], f"Phase reconstructed by {(i+1)*plot_interval} iterations")
+
+mytools.save_h5_from_float(output_file, output_dataset, result[0])
+if algorithm == hiholo.Algorithm.APWP:
+    mytools.append_h5_from_float(output_file, "probe_" + output_dataset, result[2])

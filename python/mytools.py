@@ -84,6 +84,10 @@ def save_h5_from_float(file_path, dataset_name, data):
     with h5py.File(file_path, 'w') as f:
         f.create_dataset(dataset_name, data=data, dtype=np.float32)
 
+def append_h5_from_float(file_path, dataset_name, data):
+    with h5py.File(file_path, 'a') as f:
+        f.create_dataset(dataset_name, data=data, dtype=np.float32)
+
 def save_3d_batch_data(file_path, dataset_name, data, offset):
     with h5py.File(file_path, 'a') as f:
         if dataset_name not in f:
@@ -153,6 +157,15 @@ def read_3d_data_frame(file_path, dataset, index):
         if data.ndim != 3:
             raise ValueError(f"Data is not 3D. Actual dimensions: {data.shape}")
         return data[index]
+
+def read_4d_data_frame(file_path, dataset, angle, distance):
+    with h5py.File(file_path, 'r') as f:
+        if dataset not in f:
+            raise ValueError(f"Dataset '{dataset}' not found in HDF5 file")
+        data = np.array(f[dataset], dtype=np.float32)
+        if data.ndim != 4:
+            raise ValueError(f"Data is not 4D. Actual dimensions: {data.shape}")
+        return data[angle][distance]
 
 def read_dark_data(file_path, dataset):
     return read_h5_to_float(file_path, dataset)[0]

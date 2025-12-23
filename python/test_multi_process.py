@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import mytools
 import hiholo
 
@@ -43,6 +42,10 @@ for i in range(0, angles, batch_size):
     print(f"Saving batch {i} to {i + batch_size}")
     mytools.save_4d_batch_data(processed_output_file, processed_output_dataset, data_batch, i)
 
+angle = 127
+distance = 1
+processed_frame = mytools.read_4d_data_frame(processed_output_file, processed_output_dataset, angle, distance)
+
 batch_size_recon = 100
 fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
 # Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 100:CTF)
@@ -84,3 +87,6 @@ for i in range(0, angles, batch_size_recon):
 
     recon_batch = ctf_reconstructor.reconsBatch(data_batch)
     mytools.save_3d_batch_data(ctf_output_file, ctf_output_dataset, recon_batch, i)
+
+angle = 127
+phase_frame = mytools.read_3d_data_frame(ctf_output_file, ctf_output_dataset, angle)
