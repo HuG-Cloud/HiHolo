@@ -39,42 +39,42 @@ def display_image(phase, title="Phase", cmap='gray'):
     plt.pause(1)
     plt.close()
 
-def save_image_with_colorbar(img, filename, cmap='gray', display_range=None):
-    """
-    Save an image with a colorbar, normalizing the image display but
-    allowing a custom range for the colorbar labels.
-    If display_range is None, no colorbar is added.
-    """
-    fig, ax = plt.subplots(figsize=(8, 8))
+# def save_image_with_colorbar(img, filename, cmap='gray', display_range=None):
+#     """
+#     Save an image with a colorbar, normalizing the image display but
+#     allowing a custom range for the colorbar labels.
+#     If display_range is None, no colorbar is added.
+#     """
+#     fig, ax = plt.subplots(figsize=(8, 8))
 
-    # Normalize the entire image data to the [0, 1] range first
-    min_val = np.min(img)
-    max_val = np.max(img)
+#     # Normalize the entire image data to the [0, 1] range first
+#     min_val = np.min(img)
+#     max_val = np.max(img)
     
-    if max_val == min_val:
-        # Handle constant image case
-        normalized_img = np.zeros_like(img)
-    else:
-        normalized_img = (img - min_val) / (max_val - min_val)
+#     if max_val == min_val:
+#         # Handle constant image case
+#         normalized_img = np.zeros_like(img)
+#     else:
+#         normalized_img = (img - min_val) / (max_val - min_val)
 
-    # Display the normalized image with a fixed color range [0, 1]
-    im = ax.imshow(normalized_img, cmap=cmap, vmin=0, vmax=1)
+#     # Display the normalized image with a fixed color range [0, 1]
+#     im = ax.imshow(normalized_img, cmap=cmap, vmin=0, vmax=1)
     
-    # Hide axes (no width/height scales)
-    ax.axis('off')
+#     # Hide axes (no width/height scales)
+#     ax.axis('off')
     
-    if display_range is not None:
-        # Colorbar aligned to image axis height
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="4%", pad=0.25)
-        cbar = fig.colorbar(im, cax=cax)
+#     if display_range is not None:
+#         # Colorbar aligned to image axis height
+#         divider = make_axes_locatable(ax)
+#         cax = divider.append_axes("right", size="4%", pad=0.25)
+#         cbar = fig.colorbar(im, cax=cax)
         
-        # Map normalized ticks to the actual display range
-        ticks = np.linspace(0, 1, 6)
-        tick_labels = np.linspace(display_range[0], display_range[1], 6)
-        cbar.set_ticks(ticks)
-        cbar.set_ticklabels([f"{val:.1f}" for val in tick_labels])
-        cbar.ax.tick_params(labelsize=16)
+#         # Map normalized ticks to the actual display range
+#         ticks = np.linspace(0, 1, 6)
+#         tick_labels = np.linspace(display_range[0], display_range[1], 6)
+#         cbar.set_ticks(ticks)
+#         cbar.set_ticklabels([f"{val:.1f}" for val in tick_labels])
+#         cbar.ax.tick_params(labelsize=16)
 
     # # Add a 2mm scale bar
     # # Pixel size in micrometers
@@ -102,8 +102,8 @@ def save_image_with_colorbar(img, filename, cmap='gray', display_range=None):
     # # Add the scale bar label with larger font
     # ax.text(rect_x + scale_bar_length_px / 2, rect_y - 10, '2 mm', color='white', ha='center', va='bottom', fontsize=25)
     
-    fig.savefig(filename, bbox_inches='tight', pad_inches=0)
-    plt.close(fig)
+    # fig.savefig(filename, bbox_inches='tight', pad_inches=0)
+    # plt.close(fig)
 
 def test_reconstruction():
     """Test holographic reconstruction with hiholo"""
@@ -113,31 +113,31 @@ def test_reconstruction():
     #############################################################
     
     #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_regist_new.h5"
-    #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_purephase.h5"
+    input_file = "/home/hug/Downloads/HoloTomo_Data/holo_purephase.h5"
     #input_file = "/home/hug/Downloads/HoloTomo_Data/holopadw1.h5"
-    input_file = "/home/hug/Downloads/HoloTomo_Data/dog_cat_dataset/only_phase/holo_probewithobj3.h5"
+    #input_file = "/home/hug/Downloads/HoloTomo_Data/dog_cat_dataset/only_phase/holo_probewithobj3.h5"
     #input_file = "/home/hug/Downloads/HoloTomo_Data/diff_1.tif"
     #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_data.h5"
     #input_file = "/home/hug/Downloads/HoloTomo_Data/processed_data.h5"    
-    #input_dataset = "holodata"
+    input_dataset = "holodata"
     #input_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_holo.h5"
-    input_dataset = "hologramCTF_objwithprobe"
+    #input_dataset = "hologramCTF_objwithprobe"
     #output_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board_result.h5"
     output_file = "/home/hug/Downloads/HoloTomo_Data/result.h5"
     output_dataset = "phasedata"
     
     # List of fresnel numbers
-    #fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
+    fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
     #fresnel_numbers = [[2.906977e-4], [1.453488e-4], [8.4302325e-5], [4.651163e-5]]
     #fresnel_numbers = [[0.003], [0.0015], [0.00087], [0.00039], [0.000216]]
     #fresnel_numbers = [[0.00087]]
-    fresnel_numbers = [[0.0126], [0.00725], [0.00426], [0.00886]]
+    #fresnel_numbers = [[0.0126], [0.00725], [0.00426], [0.00886]]
     #fresnel_numbers = [[2.987e-4]]
     print(f"Using {len(fresnel_numbers)} fresnel numbers: {fresnel_numbers}")
     
     # Reconstruction parameters
     iterations = 300            # Number of iterations
-    plot_interval = 300         # Interval for displaying results
+    plot_interval = 100         # Interval for displaying results
     
     # Initial guess (optional)
     #initial_phase_file = "/home/hug/Downloads/HoloTomo_Data/purephase_ctf_result.h5"
@@ -147,7 +147,7 @@ def test_reconstruction():
     initial_phase_dataset = None
     
     # Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 4:APWP, 5:EPI)
-    algorithm = hiholo.Algorithm.APWP
+    algorithm = hiholo.Algorithm.EPI
     
     # Algorithm parameters
     if algorithm == hiholo.Algorithm.RAAR:
@@ -158,13 +158,13 @@ def test_reconstruction():
     # Constraints
     amp_limits = [0, float('inf')]  # [min, max] amplitude
     phase_limits = [-float('inf'), float('inf')]  # [min, max] phase
-    support = [2048, 2048]  # Support constraint region size
-    outside_value = 1.0  # Value outside support region
+    support = [500, 500]  # Support constraint region size
+    outside_value = 0.0  # Value outside support region
     
     # Padding
-    pad_size = [250, 250]  # Padding size
+    pad_size = [100, 100]  # Padding size
     pad_type = hiholo.PaddingType.Replicate
-    pad_value = 0.0
+    pad_value = 1.0
     
     # Probe parameters (for APWP algorithm)
     #probe_file = None
@@ -193,7 +193,7 @@ def test_reconstruction():
     # holo_data = holo_data / holo_data.max()
     # display_image(holo_data, "Hologram")
     # plt.imsave("holodata.png", holo_data[0], cmap='gray')
-    save_image_with_colorbar(holo_data[3], "holodata.png", cmap='gray', display_range=None)
+    # save_image_with_colorbar(holo_data[3], "holodata.png", cmap='gray', display_range=None)
     # display_image(probe_data, "Probe")
     # plt.imsave("probeholo.png", probe_data, cmap='gray')
 
@@ -261,7 +261,7 @@ def test_reconstruction():
                 residuals[0].extend(result[2].tolist())
                 residuals[1].extend(result[3].tolist())
             
-            #display_image(result[0], f"Amplitude reconstructed by {(i+1)*plot_interval} iterations")
+            display_image(result[0], f"Phase reconstructed by {(i+1)*plot_interval} iterations")
         else:            
             # New iterative reconstruction API
             result = hiholo.reconstruct_iter( 
@@ -319,8 +319,6 @@ def test_reconstruction():
     
     # Save images
     #save_image_with_colorbar(result[0], "phase_with_cb.png", cmap='viridis')
-    amplitude = result[1][250:2298, 250:2298]
-    save_image_with_colorbar(amplitude, "amplitude.png", cmap='viridis', display_range=[0, 1])
     plt.imsave("phase.png", result[0], cmap='viridis')
     #plt.imsave("amplitude.png", result[1], cmap='viridis')
     if algorithm == hiholo.Algorithm.APWP:

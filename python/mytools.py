@@ -140,6 +140,19 @@ def read_3d_data_info(file_path, dataset, num_images):
             raise ValueError(f"Num_images {num_images} does not match the number of images {data.shape[0]}")
         return data[0]
 
+def read_4d_data_first(file_path, dataset, num_angles, num_distances):
+    with h5py.File(file_path, 'r') as f:
+        if dataset not in f:
+            raise ValueError(f"Dataset '{dataset}' not found in HDF5 file")
+        data = np.array(f[dataset], dtype=np.float32)
+        if data.ndim != 4:
+            raise ValueError(f"Data is not 4D. Actual dimensions: {data.shape}")
+        if num_angles != data.shape[0]:
+            raise ValueError(f"Num_angles {num_angles} does not match the number of angles {data.shape[0]}")
+        if num_distances != data.shape[1]:
+            raise ValueError(f"Num_distances {num_distances} does not match the number of distances {data.shape[1]}")
+        return data[0][0]
+
 def read_holodata_frame(file_path, datasets, distance, angle):
     dataset_list = [ds.strip() for ds in datasets.split(',')]
     dataset = dataset_list[distance]
@@ -181,7 +194,7 @@ def get_angle_data(file_path, datasets, angle):
             data_angle.append(data[angle])
 
     data_angle = np.stack(data_angle, axis=0)
-    return data_angle;
+    return data_angle
 
 def get_batch_raw_data(file_path, datasets, start, batch_size):
     dataset_list = [ds.strip() for ds in datasets.split(',')]

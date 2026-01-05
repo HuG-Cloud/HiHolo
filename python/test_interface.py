@@ -32,9 +32,16 @@ angle = 127
 phase_first = mytools.read_3d_data_info(phase_file, phase_dataset, angles)
 phase_frame = mytools.read_3d_data_frame(phase_file, phase_dataset, angle)
 
-display_data = mytools.scale_display_data(phase_frame)
+processed_file = "/home/hug/Downloads/HoloTomo_Data/processed_data.h5"
+processed_dataset = "holodata"
+processed_first = mytools.read_4d_data_first(processed_file, processed_dataset, angles, distances)
+angle = 127
+distance = 1
+processed_frame = mytools.read_4d_data_frame(processed_file, processed_dataset, angle, distance)
+
+display_data = mytools.scale_display_data(processed_frame)
 plt.figure(figsize=(8, 8))
 plt.imshow(display_data, cmap='viridis')
-plt.title("holo_data first frame")
+plt.title("processed_data frame")
 plt.colorbar()
 plt.show()

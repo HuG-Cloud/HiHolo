@@ -15,8 +15,8 @@ def display_image(phase, title="Phase"):
 
 # Input/output files
 input_file = "/home/hug/Downloads/HoloTomo_Data/holo_200angles_simu_format.h5"
-phase_file = "/home/hug/Downloads/HoloTomo_Data/holo_200angles_phase.h5"
-#phase_file = None
+# phase_file = "/home/hug/Downloads/HoloTomo_Data/holo_200angles_phase.h5"
+phase_file = None
 
 datasets = "holodata_distance_0,holodata_distance_1,holodata_distance_2,holodata_distance_3"
 back_dataset = "backgrounds"
@@ -42,17 +42,17 @@ back_data = mytools.remove_outliers(back_data, kernel_size, threshold)
 dark_data = mytools.remove_outliers(dark_data, kernel_size, threshold)
 
 # The third interface (optional)
-isAPWP = True
-probe_data = np.array([])
+isAPWP = False
+# probe_data = np.array([])
 holo_data, probe_data = mytools.dark_flat_correction(holo_data, dark_data, back_data, isAPWP)
 
 # The fourth interface (optional)
-# holo_data, translations = mytools.register_images(holo_data)
+holo_data, translations = mytools.register_images(holo_data)
 
 fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
 
 # Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 4:APWP, 5:EPI, 100:CTF)
-algorithm = hiholo.Algorithm.APWP
+algorithm = hiholo.Algorithm.EPI
 
 # Padding
 pad_size = [50, 50]
@@ -80,7 +80,7 @@ projection_type = hiholo.ProjectionType.Averaged
 # Default Constraint Values
 phase_limits = [-float('inf'), float('inf')]  # [min, max] phase
 amp_limits = [0, float('inf')]  # [min, max] amplitude
-support = []  # Support constraint region size
+support = [500, 500]  # Support constraint region size
 outside_value = 0.0  # Value outside support region
 
 init_phase = np.array([])
@@ -122,7 +122,8 @@ for i in range(iterations // plot_interval):
         if calc_error:
             residuals[0].extend(result[2].tolist())
             residuals[1].extend(result[3].tolist())
-        
+
+        display_image(result[0], f"Phase reconstructed by {(i+1)*plot_interval} iterations")
     else:            
         result = hiholo.reconstruct_iter( 
             holograms=holo_data,                    
