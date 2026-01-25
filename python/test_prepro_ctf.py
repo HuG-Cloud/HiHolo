@@ -1,15 +1,5 @@
-import matplotlib.pyplot as plt
 import mytools
 import hiholo
-
-# def display_image(phase, title="Phase"):
-#     """Display image"""
-#     plt.figure(figsize=(8, 8))
-#     plt.imshow(phase, cmap='viridis')
-#     plt.colorbar()
-#     plt.title(title)
-#     plt.pause(3)
-#     plt.close()
 
 # Input/output files
 input_file = "/home/hug/Downloads/HoloTomo_Data/holo_200angles_simu_format.h5"
@@ -42,6 +32,12 @@ holo_data, probe_data = mytools.dark_flat_correction(holo_data, dark_data, back_
 # The fourth interface (optional)
 holo_data, translations = mytools.register_images(holo_data)
 
+processed_file = "processed_data.h5"
+processed_dataset = "holodata"
+mytools.save_h5_from_float(processed_file, processed_dataset, holo_data)
+if isAPWP:
+    mytools.append_h5_from_float(processed_file, "probe_" + processed_dataset, probe_data)
+
 fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
 # Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 4:APWP, 5:EPI, 100:CTF)
 algorithm = hiholo.Algorithm.CTF
@@ -56,7 +52,8 @@ low_freq_lim = 1e-3      # 低频正则化参数
 high_freq_lim = 1e-1     # 高频正则化参数  
 beta_delta_ratio = 0.1   # β/δ比值（吸收与相位偏移的比值）
 
-output_file = "ctf_result.h5"
+output_file_h5 = "ctf_result.h5"
+output_file_tiff = "ctf_result.tiff"
 output_dataset = "phasedata"
 
 result = hiholo.reconstruct_ctf(
@@ -70,4 +67,5 @@ result = hiholo.reconstruct_ctf(
     padValue=pad_value
 )
 
-mytools.save_h5_from_float(output_file, output_dataset, result)
+mytools.save_h5_from_float(output_file_h5, output_dataset, result)
+mytools.save_tiff_from_float(output_file_tiff, result)

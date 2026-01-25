@@ -137,7 +137,7 @@ def test_reconstruction():
     
     # Reconstruction parameters
     iterations = 300            # Number of iterations
-    plot_interval = 100         # Interval for displaying results
+    plot_interval = 300         # Interval for displaying results
     
     # Initial guess (optional)
     #initial_phase_file = "/home/hug/Downloads/HoloTomo_Data/purephase_ctf_result.h5"
@@ -327,6 +327,12 @@ def test_reconstruction():
     # Save reconstructed holograms
     with h5py.File(output_file, 'w') as f:
         f.create_dataset(output_dataset, data=result[0], dtype=np.float32)
+
+    output_phase_tiff = "recons_phase.tiff"
+    mytools.save_tiff_from_float(output_phase_tiff, result[0])
+    
+    data = mytools.read_tiff_to_float(output_phase_tiff)
+    display_image(data, "Phase reconstructed from TIFF")
 
 if __name__ == "__main__":
     test_reconstruction()

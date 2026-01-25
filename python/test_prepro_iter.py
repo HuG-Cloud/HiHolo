@@ -1,17 +1,6 @@
 import numpy as np
-import h5py
-import matplotlib.pyplot as plt
 import mytools
 import hiholo
-
-def display_image(phase, title="Phase"):
-    """Display image"""
-    plt.figure(figsize=(8, 8))
-    plt.imshow(phase, cmap='gray')
-    plt.colorbar()
-    plt.title(title)
-    plt.pause(3)
-    plt.close()
 
 # Input/output files
 input_file = "/home/hug/Downloads/HoloTomo_Data/holo_200angles_simu_format.h5"
@@ -49,10 +38,15 @@ holo_data, probe_data = mytools.dark_flat_correction(holo_data, dark_data, back_
 # The fourth interface (optional)
 holo_data, translations = mytools.register_images(holo_data)
 
-fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
+processed_file = "processed_data.h5"
+processed_dataset = "holodata"
+mytools.save_h5_from_float(processed_file, processed_dataset, holo_data)
+if isAPWP:
+    mytools.append_h5_from_float(processed_file, "probe_" + processed_dataset, probe_data)
 
+fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
 # Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 4:APWP, 5:EPI, 100:CTF)
-algorithm = hiholo.Algorithm.EPI
+algorithm = hiholo.Algorithm.AP
 
 # Padding
 pad_size = [50, 50]
@@ -60,8 +54,9 @@ pad_size = [50, 50]
 pad_type = hiholo.PaddingType.Replicate
 pad_value = 0.0
 
-output_file = "iter_result.h5"
+output_file_h5 = "iter_result.h5"
 output_dataset = "phasedata"
+output_file_tiff = "phase_recons.tif"
 
 iterations = 200
 plot_interval = 50
@@ -80,7 +75,7 @@ projection_type = hiholo.ProjectionType.Averaged
 # Default Constraint Values
 phase_limits = [-float('inf'), float('inf')]  # [min, max] phase
 amp_limits = [0, float('inf')]  # [min, max] amplitude
-support = [500, 500]  # Support constraint region size
+support = [600, 600]  # Support constraint region size
 outside_value = 0.0  # Value outside support region
 
 init_phase = np.array([])
@@ -123,7 +118,7 @@ for i in range(iterations // plot_interval):
             residuals[0].extend(result[2].tolist())
             residuals[1].extend(result[3].tolist())
 
-        display_image(result[0], f"Phase reconstructed by {(i+1)*plot_interval} iterations")
+        #mytools.display_image(result[0], f"Phase reconstructed by {(i+1)*plot_interval} iterations")
     else:            
         result = hiholo.reconstruct_iter( 
             holograms=holo_data,                    
@@ -159,8 +154,10 @@ for i in range(iterations // plot_interval):
             residuals[0].extend(result[3].tolist())
             residuals[1].extend(result[4].tolist())
         
-        #display_image(result[0], f"Phase reconstructed by {(i+1)*plot_interval} iterations")
+        # mytools.display_image(image, f"Phase reconstructed by {(i+1)*plot_interval} iterations")
 
-mytools.save_h5_from_float(output_file, output_dataset, result[0])
+mytools.save_h5_from_float(output_file_h5, output_dataset, result[0])
+mytools.save_tiff_from_float(output_file_tiff, result[0])
 if algorithm == hiholo.Algorithm.APWP:
-    mytools.append_h5_from_float(output_file, "probe_" + output_dataset, result[2])
+    mytools.append_h5_from_float(output_file_h5, "probe_" + output_dataset, result[2])
+    mytools.save_tiff_from_float("probe_" + output_file_tiff, result[2])

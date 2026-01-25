@@ -1,10 +1,9 @@
-import hiholo
-import matplotlib.pyplot as plt
+import numpy as np
 import mytools
 
 # Read holograms
 input_file = "/home/hug/Downloads/HoloTomo_Data/holo_200angles_simu_format.h5"
-phase_file = "/home/hug/Downloads/HoloTomo_Data/holo_200angles_phase.h5"
+phase_file = "/home/hug/Downloads/HoloTomo_Data/ctf_200angles_result.h5"
 
 holo_datasets = "holodata_distance_0,holodata_distance_1,holodata_distance_2,holodata_distance_3"
 back_dataset = "backgrounds"
@@ -39,9 +38,9 @@ angle = 127
 distance = 1
 processed_frame = mytools.read_4d_data_frame(processed_file, processed_dataset, angle, distance)
 
-display_data = mytools.scale_display_data(processed_frame)
-plt.figure(figsize=(8, 8))
-plt.imshow(display_data, cmap='viridis')
-plt.title("processed_data frame")
-plt.colorbar()
-plt.show()
+# k represents the number of times the array is rotated counterclockwise
+image = np.rot90(processed_frame, k=1)
+image = np.fliplr(image) # Flip left-right
+image = np.flipud(image) # Flip up-down
+display_data = mytools.scale_display_data(image)
+# mytools.display_image(display_data, "processed_data frame")

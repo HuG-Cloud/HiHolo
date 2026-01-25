@@ -11,3 +11,4 @@ python/plots/
 *.mat
 *.pyc
 *.png
+*.tif

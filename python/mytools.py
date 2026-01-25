@@ -1,8 +1,18 @@
 import h5py
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 import SimpleITK as sitk
 import hiholo
+
+def display_image(phase, title="Phase", cmap='gray'):
+    """Display image"""
+    plt.figure(figsize=(8, 8))
+    plt.imshow(phase, cmap)
+    plt.colorbar()
+    plt.title(title)
+    plt.pause(3)
+    plt.close()
 
 def read_float_from_tiff(file_path):
     img = Image.open(file_path)
@@ -83,6 +93,43 @@ def create_h5_file_dataset(file_path, dataset_name, shape):
 def save_h5_from_float(file_path, dataset_name, data):
     with h5py.File(file_path, 'w') as f:
         f.create_dataset(dataset_name, data=data, dtype=np.float32)
+
+def save_tiff_from_float(file_path, data):
+    if len(data.shape) != 2:
+        raise ValueError(f"Data must be 2D array, got shape: {data.shape}")
+    
+    # Convert to PIL Image in float mode
+    img = Image.fromarray(data.astype(np.float32), mode='F')
+    img.save(file_path)
+
+def read_tiff_to_float(file_path):
+    """
+    Read 2D TIFF image and return as float32 numpy array
+    Supports common TIFF modes: 'F', 'I', 'I;16', 'L', 'RGB'
+    """
+    img = Image.open(file_path)
+    
+    if img.mode == 'F':
+        # Float mode - direct conversion
+        return np.array(img).astype(np.float32)
+    elif img.mode == 'I':
+        # 32-bit integer mode
+        return np.array(img).astype(np.float32)
+    elif img.mode == 'I;16':
+        # 16-bit integer mode
+        return np.array(img, dtype=np.uint16).astype(np.float32)
+    elif img.mode == 'L':
+        # 8-bit grayscale
+        return np.array(img).astype(np.float32)
+    elif img.mode == 'RGB':
+        # Convert RGB to grayscale using standard weights
+        rgb_array = np.array(img)
+        # Use standard RGB to grayscale conversion: 0.299*R + 0.587*G + 0.114*B
+        gray = np.dot(rgb_array[...,:3], [0.299, 0.587, 0.114])
+        return gray.astype(np.float32)
+    else:
+        raise ValueError(f"Unsupported TIFF image mode: {img.mode}. Supported modes: F, I, I;16, L, RGB")
+
 
 def append_h5_from_float(file_path, dataset_name, data):
     with h5py.File(file_path, 'a') as f:
