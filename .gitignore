@@ -1,6 +1,7 @@
 *.out
 *.o
 holo_*
+!python/examples/holo_demo.py
 .vscode/
 build/
 !build.sh

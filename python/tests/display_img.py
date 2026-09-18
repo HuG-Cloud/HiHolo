@@ -39,5 +39,5 @@ phase = phase[top:top+927, left:left+927]
 display_phase(phase, "Phase")
 plt.imsave("star_phase.png", phase, cmap='gray_r')
 
-# with h5py.File(output_file, 'w') as f:
-#     f.create_dataset(dataset_name, data=phase, dtype=np.float32)
+with h5py.File(output_file, 'w') as f:
+    f.create_dataset(dataset_name, data=phase, dtype=np.float32)

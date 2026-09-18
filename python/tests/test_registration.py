@@ -52,7 +52,8 @@ def test_with_artificial_shifts():
     
     try:
         # Load base data
-        input_path = "/home/hug/Downloads/HoloTomo_Data/holo_purephase.h5"
+        #input_path = "/home/hug/Downloads/HoloTomo_Data/holo_purephase.h5"
+        input_path = "/home/hug/Downloads/HoloTomo_Data/2k_data.h5"
         output_path_shift = "/home/hug/Downloads/HoloTomo_Data/holo_shift_new.h5"
         output_path_regist = "/home/hug/Downloads/HoloTomo_Data/holo_regist_new.h5"
         dataset_name = "holodata"
@@ -63,7 +64,7 @@ def test_with_artificial_shifts():
             test_images = base_data[:4].copy()
             
             # Define known translations (same as in test_sitk.cpp)
-            known_translations = [[0, 0], [7, 8], [8, 7], [-7, 7]]
+            known_translations = [[0, 0], [10, -10], [-10, 15], [15, 15]]
             
             print("Applying known translations:")
             for i, trans in enumerate(known_translations):

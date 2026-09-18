@@ -2,8 +2,14 @@ import h5py
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
-import SimpleITK as sitk
-import hiholo
+try:
+    import SimpleITK as sitk
+except ImportError:
+    sitk = None
+try:
+    import hiholo
+except ImportError:
+    hiholo = None
 
 def display_image(phase, title="Phase", cmap='gray'):
     """Display image"""
@@ -13,6 +19,39 @@ def display_image(phase, title="Phase", cmap='gray'):
     plt.title(title)
     plt.pause(3)
     plt.close()
+
+def downsample_data(data, target_size):
+    h, w = data.shape
+    if h == target_size and w == target_size:
+        return data.copy()
+    # 计算缩放因子
+    scale_h = h / target_size
+    scale_w = w / target_size
+    # 生成目标网格的中心点坐标
+    row_idx = (np.arange(target_size) + 0.5) * scale_h - 0.5
+    col_idx = (np.arange(target_size) + 0.5) * scale_w - 0.5
+    row_idx = np.clip(row_idx, 0, h - 1)
+    col_idx = np.clip(col_idx, 0, w - 1)
+    # 双线性插值
+    row0 = np.floor(row_idx).astype(int)
+    row1 = np.clip(row0 + 1, 0, h - 1)
+    col0 = np.floor(col_idx).astype(int)
+    col1 = np.clip(col0 + 1, 0, w - 1)
+    wy = row_idx - row0
+    wx = col_idx - col0
+
+    out = np.zeros((target_size, target_size), dtype=data.dtype)
+    for i in range(target_size):
+        for j in range(target_size):
+            v00 = data[row0[i], col0[j]]
+            v01 = data[row0[i], col1[j]]
+            v10 = data[row1[i], col0[j]]
+            v11 = data[row1[i], col1[j]]
+            out[i, j] = (1-wy[i]) * (1-wx[j]) * v00 + \
+                        (1-wy[i]) * wx[j] * v01 + \
+                        wy[i] * (1-wx[j]) * v10 + \
+                        wy[i] * wx[j] * v11
+    return out
 
 def read_float_from_tiff(file_path):
     img = Image.open(file_path)
@@ -264,8 +303,10 @@ def get_batch_recon_data(file_path, dataset, start, batch_size):
         return data[start:start+batch_size]
 
 def remove_outliers(data, kernelSize=5, threshold=2.0):
-    # Ensure data is 3D or 4D
-    if len(data.shape) == 3:
+    # Ensure data is 2D, 3D or 4D
+    if len(data.shape) == 2:
+        return hiholo.removeOutliers(data, kernelSize, threshold)
+    elif len(data.shape) == 3:
         processed_data = np.zeros_like(data)
         for i in range(data.shape[0]):
             processed_data[i] = hiholo.removeOutliers(data[i], kernelSize, threshold)
@@ -277,11 +318,13 @@ def remove_outliers(data, kernelSize=5, threshold=2.0):
                 processed_data[i, j] = hiholo.removeOutliers(data[i, j], kernelSize, threshold)
         return processed_data
     else:
-        raise ValueError(f"Data must be 3D or 4D. Actual dimensions: {data.shape}")
+        raise ValueError(f"Data must be 2D, 3D or 4D. Actual dimensions: {data.shape}")
 
 def remove_stripes(data, rangeRows=0, rangeCols=0, windowSize=5, method="mul"):
-    # Ensure data is 3D or 4D
-    if len(data.shape) == 3:
+    # Ensure data is 2D, 3D or 4D
+    if len(data.shape) == 2:
+        return hiholo.removeStripes(data, rangeRows, rangeCols, windowSize, method)
+    elif len(data.shape) == 3:
         processed_data = np.zeros_like(data)
         for i in range(data.shape[0]):
             processed_data[i] = hiholo.removeStripes(data[i], rangeRows, rangeCols, windowSize, method)
@@ -293,7 +336,7 @@ def remove_stripes(data, rangeRows=0, rangeCols=0, windowSize=5, method="mul"):
                 processed_data[i, j] = hiholo.removeStripes(data[i, j], rangeRows, rangeCols, windowSize, method)
         return processed_data
     else:
-        raise ValueError(f"Data must be 3D or 4D. Actual dimensions: {data.shape}")
+        raise ValueError(f"Data must be 2D, 3D or 4D. Actual dimensions: {data.shape}")
 
 def dark_flat_correction(data, dark, flat, isAPWP=False):
     if dark.shape[0] != data.shape[0]:
@@ -540,3 +583,164 @@ def apply_fixed_translations(data, translations):
         import traceback
         traceback.print_exc()
         return data
+
+def calculate_1d_psd(image: np.ndarray):
+    """
+    计算 2D numpy array 的一维径向平均功率谱密度 (1D Radially Averaged PSD)
+    """
+    # 1. 2D傅里叶变换与中心化
+    im_fft = np.fft.fft2(image.astype(np.float64))
+    im_fft_shifted = np.fft.fftshift(im_fft)
+    
+    # 2. 计算 2D 功率谱密度
+    psd2D = np.abs(im_fft_shifted) ** 2
+    
+    # 3. 计算一维径向平均
+    h, w = psd2D.shape
+    # np.fft.fftshift 后的零频点位于 h // 2, w // 2
+    cy, cx = h // 2, w // 2
+    
+    # 生成坐标网格 (Y 为行索引对应 h，X 为列索引对应 w)
+    Y, X = np.ogrid[0:h, 0:w]
+    Y = Y - cy
+    X = X - cx
+    
+    # 计算每个点到中心的距离并取整作为标签
+    labels = np.round(np.sqrt(Y**2 + X**2)).astype(int)
+    
+    # 设定需要统计的半径范围
+    # 对应 Matlab 代码中的 linspace(0, wc-1, wc)
+    max_radius = int(np.round(w / 2))
+    index = np.arange(0, max_radius)
+    
+    mean_1d = np.zeros(max_radius, dtype=np.float64)
+    sum_1d = np.zeros(max_radius, dtype=np.float64)
+    
+    # 统计每个半径圆环上的总和与平均值
+    for i, r in enumerate(index):
+        mask = (labels == r)
+        if np.any(mask):
+            ring_values = psd2D[mask]
+            sum_1d[i] = np.sum(ring_values)
+            mean_1d[i] = np.mean(ring_values)
+            
+    return mean_1d, sum_1d
+
+def _fftfreq_norm_sq(shape, dx=1.0):
+    """
+    Create the squared norm of the angular FFT-frequency grid.
+
+    This follows HoloTomoToolbox's fftfreqNormSq/fftfreq convention, i.e.
+    frequencies are angular frequencies in radians per real-space unit.
+    """
+    shape = tuple(int(n) for n in shape)
+    if np.isscalar(dx):
+        spacing = (float(dx),) * len(shape)
+    else:
+        spacing = tuple(float(v) for v in dx)
+        if len(spacing) != len(shape):
+            raise ValueError(f"dx must have {len(shape)} entries, got {len(spacing)}")
+
+    freq_norm_sq = None
+    for axis, (n, d) in enumerate(zip(shape, spacing)):
+        freq = 2.0 * np.pi * np.fft.fftfreq(n, d=d)
+        view_shape = [1] * len(shape)
+        view_shape[axis] = n
+        freq_sq = freq.reshape(view_shape) ** 2
+        freq_norm_sq = freq_sq if freq_norm_sq is None else freq_norm_sq + freq_sq
+
+    return freq_norm_sq
+
+def _kaiser_bessel_window(shape, beta=8):
+    """
+    Compute the radial Kaiser-Bessel window used by HoloTomoToolbox fsc.m.
+    """
+    shape = tuple(int(n) for n in shape)
+    x_norm_sq = np.fft.fftshift(_fftfreq_norm_sq(shape, dx=np.pi))
+    window = np.i0(beta * np.sqrt(np.maximum(0.0, 1.0 - x_norm_sq))) / np.i0(beta)
+    window[x_norm_sq >= 1.0] = 0.0
+    return window
+
+def fsc(im1=None, im2=None, settings=None, beta=None):
+    """
+    Compute the 2D Fourier Ring Correlation (FRC) between two images.
+
+    This is a 2D-only numpy implementation of HoloTomoToolbox's fsc.m. The
+    default Kaiser-Bessel window parameter is beta=8; set beta=0 to disable
+    windowing.
+
+    Args:
+        im1: first 2D numpy array.
+        im2: second 2D numpy array with the same shape as im1.
+        settings: optional dict, currently supporting {"beta": value}.
+        beta: optional shortcut overriding settings["beta"].
+
+    Returns:
+        tuple: (frc_values, frequencies, thres_half_bit, thres_full_bit).
+    """
+    defaults = {"beta": 8}
+    if im1 is None and im2 is None:
+        return defaults.copy()
+    if im1 is None or im2 is None:
+        raise ValueError("Both im1 and im2 must be provided")
+
+    params = defaults.copy()
+    if settings is not None:
+        if not isinstance(settings, dict):
+            raise TypeError("settings must be a dict, for example {'beta': 8}")
+        params.update(settings)
+    if beta is not None:
+        params["beta"] = beta
+
+    arr1 = np.asarray(im1)
+    arr2 = np.asarray(im2)
+    if arr1.shape != arr2.shape:
+        raise ValueError(f"Input images must have the same shape, got {arr1.shape} and {arr2.shape}")
+    if arr1.ndim != 2:
+        raise ValueError(f"This implementation only supports 2D arrays, got {arr1.ndim}D")
+
+    arr1 = arr1.astype(np.float64, copy=False)
+    arr2 = arr2.astype(np.float64, copy=False)
+    if not np.all(np.isfinite(arr1)) or not np.all(np.isfinite(arr2)):
+        raise ValueError("Input images must contain only finite values")
+
+    beta_value = float(params["beta"])
+    if beta_value > 0:
+        window = _kaiser_bessel_window(arr1.shape, beta_value)
+        im1_fft = np.fft.fftn(arr1 * window)
+        im2_fft = np.fft.fftn(arr2 * window)
+    else:
+        im1_fft = np.fft.fftn(arr1)
+        im2_fft = np.fft.fftn(arr2)
+
+    shape = arr1.shape
+    min_size = min(shape)
+    xi = np.sqrt(_fftfreq_norm_sq(shape))
+    shells = np.rint(min_size / (2.0 * np.pi) * xi).astype(np.int64)
+    num_shells = int(shells.max()) + 1
+    shell_index = shells.ravel()
+
+    n_xi = np.bincount(shell_index, minlength=num_shells).astype(np.float64)
+    cross = im1_fft.ravel() * np.conj(im2_fft.ravel())
+    numerator = np.bincount(shell_index, weights=np.real(cross), minlength=num_shells)
+    power1 = np.bincount(shell_index, weights=np.abs(im1_fft.ravel()) ** 2, minlength=num_shells)
+    power2 = np.bincount(shell_index, weights=np.abs(im2_fft.ravel()) ** 2, minlength=num_shells)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        frc_values = numerator / np.sqrt(power1 * power2)
+
+    num_valid = int(np.ceil((min_size + 1) / 2.0))
+    frc_values = frc_values[:num_valid]
+    n_xi = n_xi[:num_valid]
+
+    frequencies = (np.pi / num_valid) * np.arange(num_valid, dtype=np.float64)
+    thres_half_bit = (0.2071 + 1.9102 / n_xi) / (1.2071 + 0.9102 / n_xi)
+    thres_full_bit = (0.5 + 2.4142 / n_xi) / (1.5 + 1.4142 / n_xi)
+
+    return frc_values, frequencies, thres_half_bit, thres_full_bit
+
+def frc(im1=None, im2=None, settings=None, beta=None):
+    """
+    Alias for fsc() emphasizing the 2D Fourier Ring Correlation use case.
+    """
+    return fsc(im1, im2, settings=settings, beta=beta)

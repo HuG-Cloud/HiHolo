@@ -39,109 +39,31 @@ def display_image(phase, title="Phase", cmap='gray'):
     plt.pause(1)
     plt.close()
 
-# def save_image_with_colorbar(img, filename, cmap='gray', display_range=None):
-#     """
-#     Save an image with a colorbar, normalizing the image display but
-#     allowing a custom range for the colorbar labels.
-#     If display_range is None, no colorbar is added.
-#     """
-#     fig, ax = plt.subplots(figsize=(8, 8))
-
-#     # Normalize the entire image data to the [0, 1] range first
-#     min_val = np.min(img)
-#     max_val = np.max(img)
-    
-#     if max_val == min_val:
-#         # Handle constant image case
-#         normalized_img = np.zeros_like(img)
-#     else:
-#         normalized_img = (img - min_val) / (max_val - min_val)
-
-#     # Display the normalized image with a fixed color range [0, 1]
-#     im = ax.imshow(normalized_img, cmap=cmap, vmin=0, vmax=1)
-    
-#     # Hide axes (no width/height scales)
-#     ax.axis('off')
-    
-#     if display_range is not None:
-#         # Colorbar aligned to image axis height
-#         divider = make_axes_locatable(ax)
-#         cax = divider.append_axes("right", size="4%", pad=0.25)
-#         cbar = fig.colorbar(im, cax=cax)
-        
-#         # Map normalized ticks to the actual display range
-#         ticks = np.linspace(0, 1, 6)
-#         tick_labels = np.linspace(display_range[0], display_range[1], 6)
-#         cbar.set_ticks(ticks)
-#         cbar.set_ticklabels([f"{val:.1f}" for val in tick_labels])
-#         cbar.ax.tick_params(labelsize=16)
-
-    # # Add a 2mm scale bar
-    # # Pixel size in micrometers
-    # pixel_size_um = 3.45
-    # # Image dimensions
-    # img_height, img_width = normalized_img.shape
-    # # Scale bar length in micrometers (2mm = 2000um)
-    # scale_bar_length_um = 2000
-    # # Scale bar length in pixels
-    # scale_bar_length_px = scale_bar_length_um / pixel_size_um
-
-    # # Position the scale bar at the bottom-left
-    # # Margin from the edge
-    # margin_px = 50
-    # # Scale bar dimensions (increased height)
-    # scale_bar_height_px = 40
-    # # Rectangle position (x, y)
-    # rect_x = margin_px
-    # rect_y = img_height - margin_px - scale_bar_height_px
-    
-    # # Create and add the scale bar rectangle
-    # rect = patches.Rectangle((rect_x, rect_y), scale_bar_length_px, scale_bar_height_px, linewidth=1, edgecolor='white', facecolor='white')
-    # ax.add_patch(rect)
-
-    # # Add the scale bar label with larger font
-    # ax.text(rect_x + scale_bar_length_px / 2, rect_y - 10, '2 mm', color='white', ha='center', va='bottom', fontsize=25)
-    
-    # fig.savefig(filename, bbox_inches='tight', pad_inches=0)
-    # plt.close(fig)
-
 def test_reconstruction():
     """Test holographic reconstruction with hiholo"""
     
     #############################################################
     # Parameters (modify this section)
     #############################################################
+    holo_file = "/home/hug/Downloads/data/logo/holo_obj.h5"
+    probe_file = "/home/hug/Downloads/data/logo/holo_probe.h5"
+    fn_file = "/home/hug/Downloads/data/logo/FN.h5"
     
-    #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_regist_new.h5"
-    #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_purephase.h5"
-    #input_file = "/home/hug/Downloads/HoloTomo_Data/holopadw1.h5"
-    #input_file = "/home/hug/Downloads/HoloTomo_Data/dog_cat_dataset/only_phase/holo_probewithobj2.h5"
-    input_file = "/home/hug/Downloads/HoloTomo_Data/spider_hair.tiff"
+    holo_dataset = "holo_data_p0_flatcorr_org"
+    probe_dataset = "probe_data_p0_flatcorr_org"
+    fn_dataset = "FN"
+    #input_file = "/home/hug/Downloads/HoloTomo_Data/dog_cat_dataset/only_phase/holo_probewithobj3.h5"
     #input_file = "/home/hug/Downloads/HoloTomo_Data/holo_data.h5"
-    #input_file = "/home/hug/Downloads/HoloTomo_Data/holography3.h5"
-    #input_file = "/home/hug/Downloads/data/first/holo_org.h5"
-    #input_file = "./data/holo_obj_with_ref.h5"
-
+    #input_file = "/home/hug/Downloads/data/second/holo_obj.h5"
     
     #input_dataset = "holodata"
     #input_dataset = "holo_obj"
-    #input_dataset = "holo_org"
-    #input_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/wing_holo.h5"
     #input_dataset = "hologramCTF_objwithprobe"
-    #output_file = "/home/hug/Downloads/HoloTomo_Data/visiblelight/board_result.h5"
     output_dataset = "phasedata"
     
     # List of fresnel numbers
-    #fresnel_numbers = [[1.6667e-3], [8.3333e-4], [4.83333e-4], [2.66667e-4]]
-    #fresnel_numbers = [[2.906977e-4], [1.453488e-4], [8.4302325e-5], [4.651163e-5]]
-    #fresnel_numbers = [[0.003], [0.0015], [0.00087], [0.00039], [0.000216]]
-    #fresnel_numbers=[[9.6724648e-04]]
     #fresnel_numbers=[[5.56e-4]]
     #fresnel_numbers = [[0.0126], [0.00725], [0.00426], [0.00886]]
-    fresnel_numbers = [[7.72e-5]]
-    #fresnel_numbers = [[1.1345e-2]]
-    #fresnel_numbers = [[2.987e-4]]
-    print(f"Using {len(fresnel_numbers)} fresnel numbers: {fresnel_numbers}")
     
     # Reconstruction parameters
     iterations = 300            # Number of iterations
@@ -155,7 +77,7 @@ def test_reconstruction():
     initial_phase_dataset = None
     
     # Algorithm selection (0:AP, 1:RAAR, 2:HIO, 3:DRAP, 4:APWP, 5:EPI)
-    algorithm = hiholo.Algorithm.DRAP
+    algorithm = hiholo.Algorithm.APWP
     
     # Algorithm parameters
     if algorithm == hiholo.Algorithm.RAAR:
@@ -164,25 +86,23 @@ def test_reconstruction():
         algo_params = [0.7]
     
     # Constraints
-    amp_limits = [0, float('inf')]  # [min, max] amplitude
+    amp_limits = [1, 1]  # [min, max] amplitude
     phase_limits = [-float('inf'), float('inf')]  # [min, max] phase
     support = []  # Support constraint region size
-    outside_value = 1.0  # Value outside support region
+    outside_value = 0.0  # Value outside support region
     
     # Padding
-    pad_size = [500, 500]  # Padding size
+    pad_size = [300, 300]  # Padding size
     pad_type = hiholo.PaddingType.Replicate
-    pad_value = 0.0
+    pad_value = 1.0
     
     # Probe parameters (for APWP algorithm)
-    probe_file = None
     #probe_file = "/home/hug/Downloads/HoloTomo_Data/dog_cat_dataset/only_phase/holo_probe2.h5"
-    #probe_file = "./data/holo_ref.h5"
     #probe_file = "/home/hug/Downloads/HoloTomo_Data/probe_data.h5"
-    #probe_file = "/home/hug/Downloads/data/first/holo_probe.h5"
+    #probe_file = "/home/hug/Downloads/data/second/holo_probe.h5"
     #probe_dataset = "hologramCTF_probe"
-    probe_dataset = "holodata"
-    #probe_dataset = "holo_porbe"
+    #probe_dataset = "holodata"
+    #probe_dataset = "holo_probe"
     probe_phase_file = None
     probe_phase_dataset = None
     
@@ -196,39 +116,32 @@ def test_reconstruction():
     #############################################################
     # End of parameters section
     #############################################################
-    
-    #holo_data = mytools.read_h5_to_float(input_file, input_dataset)
-    holo_data = mytools.read_float_from_tiff(input_file)
-    #probe_data = mytools.read_h5_to_float(probe_file, probe_dataset)
-    #holo_data = holo_data / probe_data
+    holo_temp = mytools.read_h5_to_float(holo_file, holo_dataset)
+    probe_temp = mytools.read_h5_to_float(probe_file, probe_dataset)
+
+    fresnel_number = mytools.read_h5_to_float(fn_file, fn_dataset)[0][0]    
+    fresnel_numbers = [[fresnel_number]]
+    print(f"Using {len(fresnel_numbers)} fresnel numbers: {fresnel_numbers}")
+
+    holo_data = holo_temp
     print(f"Loaded hologram of size {holo_data.shape}")
 
     # holo_data = holo_data / holo_data.max()
     # display_image(holo_data, "Hologram")
-    # plt.imsave("holodata.png", holo_data[0], cmap='gray')
+    plt.imsave("holodata.png", holo_data, cmap='viridis')
     # save_image_with_colorbar(holo_data[3], "holodata.png", cmap='gray', display_range=None)
     # display_image(probe_data, "Probe")
-    # plt.imsave("probeholo.png", probe_data, cmap='gray')
+    plt.imsave("probeholo.png", probe_temp, cmap='viridis')
 
     # Read initial phase if provided
     initial_phase_array = np.array([])
-    if initial_phase_file is not None:
-        initial_phase_array = mytools.read_h5_to_float(initial_phase_file,
-                                                       initial_phase_dataset)
 
     # Read probe grams if provided
-    probe_array = np.array([])
+    probe_array = probe_temp
     probe_phase_array = np.array([])
-    if algorithm == hiholo.Algorithm.APWP:
-        if probe_file is not None:
-            probe_array = mytools.read_h5_to_float(probe_file, probe_dataset)
-            #plt.imsave("probeholo_0.png", probe_array, cmap='gray')
-            #probe_array = probe_array / probe_array.max()
-        
-        if probe_phase_file is not None:
-            with h5py.File(probe_phase_file, 'r') as f:
-                probe_phase_array = np.array(f[probe_phase_dataset], dtype=np.float32)
-    
+
+    #probe_array = probe_data
+
     # Output algorithm info
     algorithm_names = {
         hiholo.Algorithm.AP: "AP",
@@ -332,8 +245,7 @@ def test_reconstruction():
     
     # Save images
     #save_image_with_colorbar(result[0], "phase_with_cb.png", cmap='viridis')
-    plt.imsave(algorithm_names.get(algorithm, 'Unknown') + "_phase.png", result[0], cmap='gray')
-    plt.imsave(algorithm_names.get(algorithm, 'Unknown') + "_amplitude.png", result[1], cmap='gray')
+    plt.imsave(algorithm_names.get(algorithm, 'Unknown') + "_phase.png", result[0], cmap='viridis')
     #plt.imsave("amplitude.png", result[1], cmap='viridis')
     if algorithm == hiholo.Algorithm.APWP:
         plt.imsave(algorithm_names.get(algorithm, 'Unknown') + "_probe_phase.png", result[2], cmap='gray')

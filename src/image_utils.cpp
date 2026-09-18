@@ -227,8 +227,9 @@ D2DArray ImageUtils::calibrateDistance(const DArray &maxPSD, const DArray &nz, d
     // Compute pixels and magnification
     int numImages = maxPSD.size();
     DArray magnitudes(numImages);
+    const long double magnitudeScale = static_cast<long double>(length) / static_cast<long double>(pixelSize);
     for (int i = 0; i < numImages; i++) {
-        magnitudes[i] = 1.0 / ((1.0 / maxPSD[i]) * pixelSize / length);
+        magnitudes[i] = static_cast<double>(static_cast<long double>(maxPSD[i]) * magnitudeScale);
     }
 
     // Fit the 1/M and nz to a linear function
@@ -243,13 +244,13 @@ D2DArray ImageUtils::calibrateDistance(const DArray &maxPSD, const DArray &nz, d
 
     DArray mag_fits(numImages);
     for (int i = 0; i < numImages; i++) {
-        mag_fits[i] = b * nz[i] + a;
+        mag_fits[i] = std::fma(b, nz[i], a);
     }
     parameters[2] = mag_fits;
 
     // Compute the distances
-    double z1 = a * stepSize / b;
-    double z2 = stepSize / b;
+    const long double z2 = static_cast<long double>(stepSize) / static_cast<long double>(b);
+    const long double z1 = static_cast<long double>(a) * z2;
     parameters[3] = {z1, z2, b, a, cov[3]};
 
     return parameters;
